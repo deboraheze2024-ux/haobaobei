@@ -1,11 +1,4 @@
--- 好宝贝 - 正面管教成长陪伴系统
--- 数据库初始化脚本
--- 在 Supabase SQL Editor 中执行
-
--- ============================================
--- 用户和会话表
--- ============================================
-
+-- 核心用户表
 CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   email TEXT UNIQUE NOT NULL,
@@ -17,6 +10,7 @@ CREATE TABLE IF NOT EXISTS users (
   last_login_at TIMESTAMPTZ
 );
 
+-- 会话表
 CREATE TABLE IF NOT EXISTS sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -42,10 +36,6 @@ CREATE TABLE IF NOT EXISTS admin_sessions (
   expires_at TIMESTAMPTZ NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
-
--- ============================================
--- 核心业务表
--- ============================================
 
 -- 孩子档案表
 CREATE TABLE IF NOT EXISTS child_profiles (
@@ -230,49 +220,17 @@ CREATE TABLE IF NOT EXISTS app_settings (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ============================================
--- 插入默认管理员
--- ============================================
-
+-- 插入默认管理员 (密码: admin123)
 INSERT INTO admins (id, email, password, name, role) 
 VALUES ('admin-001', 'admin@haobaobei.com', '5dabf36d62ac456bf85e48076576ca07a3e26207ef9c4da85f406f098018327f', '超级管理员', 'super_admin')
 ON CONFLICT (email) DO NOTHING;
 
--- ============================================
--- 启用 RLS (行级安全策略)
--- ============================================
-
--- 管理员表需要禁用 RLS 或配置正确的策略
-ALTER TABLE admins ENABLE ROW LEVEL SECURITY;
-ALTER TABLE admin_sessions ENABLE ROW LEVEL SECURITY;
-
--- 为其他表启用 RLS 并设置策略
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-ALTER TABLE sessions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE child_profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE check_in_records ENABLE ROW LEVEL SECURITY;
-ALTER TABLE emotion_records ENABLE ROW LEVEL SECURITY;
-ALTER TABLE family_meetings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE growth_goals ENABLE ROW LEVEL SECURITY;
-ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
-ALTER TABLE phrase_cards ENABLE ROW LEVEL SECURITY;
-ALTER TABLE task_templates ENABLE ROW LEVEL SECURITY;
-ALTER TABLE parenting_notes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE reflection_records ENABLE ROW LEVEL SECURITY;
-ALTER TABLE learning_records ENABLE ROW LEVEL SECURITY;
-ALTER TABLE important_experiences ENABLE ROW LEVEL SECURITY;
-ALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;
-
--- ============================================
 -- 创建索引
--- ============================================
-
 CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
 CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_admin_sessions_token ON admin_sessions(token);
 CREATE INDEX IF NOT EXISTS idx_child_profiles_user_id ON child_profiles(user_id);
 CREATE INDEX IF NOT EXISTS idx_check_in_records_user_id ON check_in_records(user_id);
-CREATE INDEX IF NOT EXISTS idx_check_in_records_date ON check_in_records(date);
 CREATE INDEX IF NOT EXISTS idx_emotion_records_user_id ON emotion_records(user_id);
 CREATE INDEX IF NOT EXISTS idx_family_meetings_user_id ON family_meetings(user_id);
 CREATE INDEX IF NOT EXISTS idx_growth_goals_user_id ON growth_goals(user_id);
