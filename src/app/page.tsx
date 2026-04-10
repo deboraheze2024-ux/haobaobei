@@ -93,6 +93,17 @@ const modules = [
     stats: '团队协作',
     tagColor: 'text-cyan-600 bg-cyan-100',
   },
+  {
+    href: '/parenting',
+    icon: Heart,
+    title: '父母园地',
+    description: '陪伴笔记、复盘学习与成长记录',
+    gradient: 'from-pink-400 to-rose-500',
+    bgColor: 'bg-rose-50',
+    borderColor: 'border-rose-200',
+    stats: '自我成长',
+    tagColor: 'text-rose-600 bg-rose-100',
+  },
 ];
 
 export default function HomePage() {

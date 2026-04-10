@@ -5,10 +5,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   CalendarCheck,
-  UserCircle,
-  MessageCircle,
-  BookOpen,
-  Users,
   Menu,
   X,
   Home,
@@ -25,10 +21,6 @@ const navItems = [
   { href: '/', label: '首页', icon: Home },
   { href: '/checkin', label: '今日打卡', icon: CalendarCheck },
   { href: '/goals', label: '成长目标', icon: Target },
-  { href: '/profile', label: '成长档案', icon: UserCircle },
-  { href: '/chat', label: 'AI 问答', icon: MessageCircle },
-  { href: '/phrases', label: '话术库', icon: BookOpen },
-  { href: '/meeting', label: '家庭会议', icon: Users },
   { href: '/parenting', label: '父母园地', icon: BookHeart },
 ];
 
