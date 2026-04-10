@@ -21,13 +21,17 @@ export function getSupabaseClient(): SupabaseClient {
     return supabaseClient;
   }
 
-  const url = process.env.COZE_SUPABASE_URL;
-  const anonKey = process.env.COZE_SUPABASE_ANON_KEY;
+  // 支持多种环境变量命名
+  const url = process.env.COZE_SUPABASE_URL 
+    || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.COZE_SUPABASE_ANON_KEY 
+    || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !anonKey) {
     throw new Error(
       'Missing Supabase environment variables: ' +
-      'COZE_SUPABASE_URL and COZE_SUPABASE_ANON_KEY must be set'
+      'COZE_SUPABASE_URL/NEXT_PUBLIC_SUPABASE_URL and ' +
+      'COZE_SUPABASE_ANON_KEY/NEXT_PUBLIC_SUPABASE_ANON_KEY must be set'
     );
   }
 
