@@ -12,7 +12,7 @@
 - **UI 组件**: shadcn/ui (基于 Radix UI)
 - **Styling**: Tailwind CSS 4
 - **AI**: coze-coding-dev-sdk (流式输出)
-- **存储**: localStorage (本地优先)
+- **存储**: Supabase PostgreSQL 数据库 + localStorage 降级
 
 ## 目录结构
 
@@ -21,7 +21,9 @@ src/
 ├── app/
 │   ├── api/
 │   │   ├── chat/route.ts           # AI 对话 API
-│   │   └── goals/breakdown/route.ts # AI 目标拆解 API
+│   │   ├── goals/breakdown/route.ts # AI 目标拆解 API
+│   │   ├── upload/route.ts          # 图片上传 API
+│   │   └── db-query/route.ts        # 数据库查询 API
 │   ├── checkin/page.tsx             # 今日打卡
 │   ├── chat/page.tsx                # AI 问答助手
 │   ├── goals/page.tsx               # 成长目标管理
@@ -37,8 +39,16 @@ src/
 ├── lib/
 │   ├── types.ts                    # 类型定义
 │   ├── knowledge-base.ts           # 正面管教知识库 (50+条目)
-│   ├── storage.ts                  # localStorage 管理
-│   └── context.tsx                 # React Context
+│   ├── storage.ts                 # localStorage 管理
+│   ├── context.tsx                 # React Context
+│   └── db-sync.ts                  # 数据库同步模块
+└── storage/
+    └── database/
+        ├── shared/
+        │   └── schema.ts           # 数据库 Schema 定义
+        ├── migrations/             # 数据库迁移文件
+        ├── supabase-client.ts      # Supabase 客户端
+        └── db-operations.ts        # 数据库 CRUD 操作
 ```
 
 ## 五大核心模块
@@ -124,11 +134,31 @@ AI 目标拆解接口，将成长目标分解为具体可执行的节点。
 
 **响应**: 包含目标节点、建议话术、相关知识点的结构化数据
 
+### POST /api/db-query
+数据库查询接口，用于客户端访问 Supabase 数据库。
+
+**请求体**:
+```json
+{
+  "table": "child_profiles",
+  "operation": "select",
+  "filters": { "id": "xxx" },
+  "order": { "column": "created_at", "ascending": false },
+  "limit": 10,
+  "single": false
+}
+```
+
+**operation** 支持: `select`, `insert`, `update`, `delete`
+
 ## 数据存储
 
-- 使用 localStorage 存储所有数据
-- key: `positive-parenting-app`
-- 子 key: `_checkins`, `_emotions`, `_meetings`, `_chat`
+- **主存储**: Supabase PostgreSQL 数据库
+  - 13 张数据表（孩子档案、打卡记录、情绪记录、家庭会议、成长目标、聊天记录、话术卡片、任务模板、陪伴笔记、复盘记录、学习记录、重要经验、应用设置）
+  - 所有表启用了 RLS 策略，设置为完全公开访问
+- **降级存储**: localStorage（当数据库不可用时使用）
+- **数据同步**: `db-sync.ts` 模块负责数据库和 localStorage 之间的数据同步
+- **环境变量**: Supabase 配置存储在 `.env` 文件中
 
 ## 知识库
 

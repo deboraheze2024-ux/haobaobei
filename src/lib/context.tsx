@@ -17,6 +17,7 @@ import {
   ImportantExperience,
 } from './types';
 import { storage } from './storage';
+import { loadAllData, saveChildProfile, addChildProfile, removeChildProfile, saveCheckIn, saveEmotionRecord, saveMeeting, removeMeeting, saveChatMessage, clearChat, saveGrowthGoal, removeGrowthGoal, saveParentingNote, removeParentingNote, saveReflectionRecord, removeReflectionRecord, saveLearningRecord, removeLearningRecord, saveImportantExperience, removeImportantExperience, checkDatabaseAvailability } from './db-sync';
 import {
   defaultTaskTemplates,
   defaultPhraseCards,
@@ -117,35 +118,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // 初始化数据
   useEffect(() => {
-    const loadData = () => {
+    const loadData = async () => {
       try {
-        const settings = storage.getSettings();
-
-        setChildProfiles(settings.childProfiles);
-        setActiveChildState(settings.activeChildId
-          ? settings.childProfiles.find((c) => c.id === settings.activeChildId) || null
-          : null
-        );
-        setTaskTemplates(settings.taskTemplates.length > 0 ? settings.taskTemplates : defaultTaskTemplates);
-        setPhraseCards(settings.phraseCards.length > 0 ? settings.phraseCards : defaultPhraseCards);
-        setTodayCheckIns(storage.getTodayCheckIn());
-        setEmotionRecords(storage.getEmotionRecords());
-        setRecentEmotions(storage.getRecentEmotions());
-        setFamilyMeetings(storage.getFamilyMeetings());
-        setChatMessages(storage.getChatMessages());
+        // 检查数据库可用性
+        await checkDatabaseAvailability();
         
-        // 加载目标
-        const allGoals = storage.getGrowthGoals();
-        setGrowthGoals(allGoals);
-        setActiveGoals(allGoals.filter((g) => g.status === 'active'));
-
-        // 加载父母园地数据
-        setParentingNotes(storage.getParentingNotes());
-        setReflectionRecords(storage.getReflectionRecords());
-        setLearningRecords(storage.getLearningRecords());
-        setImportantExperiences(storage.getImportantExperiences());
+        // 加载数据
+        const data = await loadAllData();
+        
+        setChildProfiles(data.childProfiles);
+        setActiveChildState(data.childProfiles.find((c) => c.id === data.childProfiles[0]?.id) || null);
+        setTaskTemplates(data.phraseCards.length > 0 ? defaultTaskTemplates : defaultTaskTemplates);
+        setPhraseCards(data.phraseCards);
+        setTodayCheckIns(data.todayCheckIns);
+        setEmotionRecords(data.emotionRecords);
+        setRecentEmotions(data.recentEmotions);
+        setFamilyMeetings(data.familyMeetings);
+        setChatMessages(data.chatMessages);
+        setGrowthGoals(data.growthGoals);
+        setActiveGoals(data.growthGoals.filter((g) => g.status === 'active'));
+        setParentingNotes(data.parentingNotes);
+        setReflectionRecords(data.reflectionRecords);
+        setLearningRecords(data.learningRecords);
+        setImportantExperiences(data.importantExperiences);
       } catch (error) {
         console.error('Failed to load data:', error);
+        // 加载失败时使用默认值
+        setChildProfiles([defaultChildProfile]);
+        setTaskTemplates(defaultTaskTemplates);
+        setPhraseCards(defaultPhraseCards);
       } finally {
         setIsLoading(false);
       }
@@ -162,8 +163,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setActiveGoals(storage.getActiveGoals(childId));
   };
 
-  const updateChildProfile = (child: ChildProfile) => {
-    storage.updateChildProfile(child);
+  const updateChildProfile = async (child: ChildProfile) => {
+    await saveChildProfile(child);
     setChildProfiles((prev) =>
       prev.map((c) => (c.id === child.id ? child : c))
     );
@@ -172,12 +173,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const addChildProfile = (child: ChildProfile) => {
-    storage.addChildProfile(child);
+  const addChildProfile = async (child: ChildProfile) => {
+    await addChildProfile(child);
     setChildProfiles((prev) => [...prev, child]);
   };
 
-  const deleteChildProfile = (childId: string) => {
+  const deleteChildProfile = async (childId: string) => {
+    await removeChildProfile(childId);
     const settings = storage.getSettings();
     const updatedProfiles = settings.childProfiles.filter((c) => c.id !== childId);
     settings.childProfiles = updatedProfiles;
@@ -192,8 +194,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const saveCheckIn = (record: CheckInRecord) => {
-    storage.saveCheckInRecord(record);
+  const saveCheckIn = async (record: CheckInRecord) => {
+    await saveCheckIn(record);
     const today = new Date().toISOString().split('T')[0];
     if (record.date === today) {
       setTodayCheckIns((prev) => {
@@ -210,14 +212,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const saveEmotion = (record: EmotionRecord) => {
-    storage.saveEmotionRecord(record);
+  const saveEmotion = async (record: EmotionRecord) => {
+    await saveEmotionRecord(record);
     setEmotionRecords((prev) => [...prev, record]);
-    setRecentEmotions(storage.getRecentEmotions());
+    setRecentEmotions((prev) => {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 7);
+      return [...prev.filter((r) => new Date(r.date) >= cutoff), record];
+    });
   };
 
-  const saveMeeting = (meeting: FamilyMeeting) => {
-    storage.saveFamilyMeeting(meeting);
+  const saveMeeting = async (meeting: FamilyMeeting) => {
+    await saveMeeting(meeting);
     setFamilyMeetings((prev) => {
       const index = prev.findIndex((m) => m.id === meeting.id);
       if (index !== -1) {
@@ -229,20 +235,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const deleteMeeting = (meetingId: string) => {
+  const deleteMeeting = async (meetingId: string) => {
+    await removeMeeting(meetingId);
     setFamilyMeetings((prev) => prev.filter((m) => m.id !== meetingId));
   };
 
-  const addChatMessage = (message: ChatMessage) => {
-    storage.saveChatMessage(message);
+  const addChatMessage = async (message: ChatMessage) => {
+    await saveChatMessage(message);
     setChatMessages((prev) => {
       const updated = [...prev, message];
       return updated.slice(-50);
     });
   };
 
-  const clearChat = () => {
-    storage.clearChat();
+  const clearChat = async () => {
+    await clearChat();
     setChatMessages([]);
   };
 
@@ -262,8 +269,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setPhraseCards((prev) => prev.filter((card) => card.id !== cardId));
   };
 
-  const saveGoal = (goal: GrowthGoal) => {
-    storage.saveGrowthGoal(goal);
+  const saveGoal = async (goal: GrowthGoal) => {
+    await saveGrowthGoal(goal);
     setGrowthGoals((prev) => {
       const index = prev.findIndex((g) => g.id === goal.id);
       if (index !== -1) {
@@ -286,8 +293,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const deleteGoal = (goalId: string) => {
-    storage.deleteGrowthGoal(goalId);
+  const deleteGoal = async (goalId: string) => {
+    await removeGrowthGoal(goalId);
     setGrowthGoals((prev) => prev.filter((g) => g.id !== goalId));
     setActiveGoals((prev) => prev.filter((g) => g.id !== goalId));
   };
@@ -512,12 +519,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // 父母园地 - 陪伴笔记
   // ============================================
 
-  const saveParentingNote = (note: ParentingNote) => {
+  const saveParentingNote = async (note: ParentingNote) => {
     const updatedNote = {
       ...note,
       updatedAt: new Date().toISOString(),
     };
-    storage.saveParentingNote(updatedNote);
+    await saveParentingNote(updatedNote);
     setParentingNotes((prev) => {
       const index = prev.findIndex((n) => n.id === note.id);
       if (index >= 0) {
@@ -529,8 +536,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const deleteParentingNote = (noteId: string) => {
-    storage.deleteParentingNote(noteId);
+  const deleteParentingNote = async (noteId: string) => {
+    await removeParentingNote(noteId);
     setParentingNotes((prev) => prev.filter((n) => n.id !== noteId));
   };
 
@@ -545,12 +552,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // 父母园地 - 复盘记录
   // ============================================
 
-  const saveReflectionRecord = (record: ReflectionRecord) => {
+  const saveReflectionRecord = async (record: ReflectionRecord) => {
     const updatedRecord = {
       ...record,
       updatedAt: new Date().toISOString(),
     };
-    storage.saveReflectionRecord(updatedRecord);
+    await saveReflectionRecord(updatedRecord);
     setReflectionRecords((prev) => {
       const index = prev.findIndex((r) => r.id === record.id);
       if (index >= 0) {
@@ -562,8 +569,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const deleteReflectionRecord = (recordId: string) => {
-    storage.deleteReflectionRecord(recordId);
+  const deleteReflectionRecord = async (recordId: string) => {
+    await removeReflectionRecord(recordId);
     setReflectionRecords((prev) => prev.filter((r) => r.id !== recordId));
   };
 
@@ -571,12 +578,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // 父母园地 - 学习成长记录
   // ============================================
 
-  const saveLearningRecord = (record: LearningRecord) => {
+  const saveLearningRecord = async (record: LearningRecord) => {
     const updatedRecord = {
       ...record,
       updatedAt: new Date().toISOString(),
     };
-    storage.saveLearningRecord(updatedRecord);
+    await saveLearningRecord(updatedRecord);
     setLearningRecords((prev) => {
       const index = prev.findIndex((r) => r.id === record.id);
       if (index >= 0) {
@@ -588,8 +595,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const deleteLearningRecord = (recordId: string) => {
-    storage.deleteLearningRecord(recordId);
+  const deleteLearningRecord = async (recordId: string) => {
+    await removeLearningRecord(recordId);
     setLearningRecords((prev) => prev.filter((r) => r.id !== recordId));
   };
 
@@ -597,12 +604,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // 父母园地 - 重要经验
   // ============================================
 
-  const saveImportantExperience = (experience: ImportantExperience) => {
+  const saveImportantExperience = async (experience: ImportantExperience) => {
     const updatedExperience = {
       ...experience,
       updatedAt: new Date().toISOString(),
     };
-    storage.saveImportantExperience(updatedExperience);
+    await saveImportantExperience(updatedExperience);
     setImportantExperiences((prev) => {
       const index = prev.findIndex((e) => e.id === experience.id);
       if (index >= 0) {
@@ -614,8 +621,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const deleteImportantExperience = (id: string) => {
-    storage.deleteImportantExperience(id);
+  const deleteImportantExperience = async (id: string) => {
+    await removeImportantExperience(id);
     setImportantExperiences((prev) => prev.filter((e) => e.id !== id));
   };
 
