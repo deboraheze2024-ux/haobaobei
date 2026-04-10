@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -26,8 +26,6 @@ import {
   Check,
   Star,
   Sparkles,
-  ChevronRight,
-  Volume2,
   Plus,
   Mic,
 } from 'lucide-react';
@@ -240,7 +238,7 @@ const categories = [
 ];
 
 export default function PhrasesPage() {
-  const { phrases, addPhrase, toggleFavorite, deletePhrase } = useApp();
+  const { phraseCards, addPhraseCard, toggleFavorite, deletePhraseCard } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('all');
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -253,9 +251,9 @@ export default function PhrasesPage() {
     chapter: '自定义',
   });
 
-  const allPhrases = [...defaultPhrases, ...phrases].map((p) => ({
+  const allPhrases = [...defaultPhrases, ...phraseCards].map((p) => ({
     ...p,
-    isFavorite: phrases.find((ph) => ph.id === p.id)?.isFavorite || p.isFavorite,
+    isFavorite: phraseCards.find((ph: Phrase) => ph.id === p.id)?.isFavorite ?? p.isFavorite,
   }));
 
   const filteredPhrases = allPhrases.filter((p) => {
@@ -276,14 +274,15 @@ export default function PhrasesPage() {
 
   const handleAddPhrase = () => {
     if (!newPhrase.title || !newPhrase.content) return;
-    addPhrase({
+    addPhraseCard({
       id: `custom-${Date.now()}`,
       title: newPhrase.title!,
-      category: newPhrase.category!,
+      category: newPhrase.category as '赢得合作' | '启发式提问' | '积极暂停' | '情绪调节' | '错误目的' | '日常惯例',
       content: newPhrase.content!,
-      scenario: newPhrase.scenario || '',
-      chapter: newPhrase.chapter || '自定义',
+      situation: newPhrase.scenario || '',
+      sourceChapter: newPhrase.chapter || '自定义',
       isFavorite: false,
+      tags: [],
     });
     setNewPhrase({
       title: '',
@@ -516,8 +515,8 @@ export default function PhrasesPage() {
                         : ''
                     )}
                     onClick={() => {
-                      if (phrases.find((p) => p.id === phrase.id)) {
-                        deletePhrase(phrase.id);
+                      if (phraseCards.find((p: Phrase) => p.id === phrase.id)) {
+                        deletePhraseCard(phrase.id);
                       } else {
                         toggleFavorite(phrase.id);
                       }

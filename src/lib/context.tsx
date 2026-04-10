@@ -54,6 +54,8 @@ interface AppState {
   // 话术
   phraseCards: PhraseCard[];
   toggleFavorite: (cardId: string) => void;
+  addPhraseCard: (card: PhraseCard) => void;
+  deletePhraseCard: (cardId: string) => void;
 
   // 目标管理
   growthGoals: GrowthGoal[];
@@ -245,6 +247,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         card.id === cardId ? { ...card, isFavorite: !card.isFavorite } : card
       )
     );
+  };
+
+  const addPhraseCard = (card: PhraseCard) => {
+    setPhraseCards((prev) => [...prev, card]);
+  };
+
+  const deletePhraseCard = (cardId: string) => {
+    setPhraseCards((prev) => prev.filter((card) => card.id !== cardId));
   };
 
   const saveGoal = (goal: GrowthGoal) => {
@@ -631,6 +641,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     clearChat,
     phraseCards,
     toggleFavorite,
+    addPhraseCard,
+    deletePhraseCard,
     growthGoals,
     activeGoals,
     saveGoal,

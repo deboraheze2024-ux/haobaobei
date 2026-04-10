@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useApp } from '@/lib/context';
 import MainNav from '@/components/main-nav';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,7 +14,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   Select,
@@ -25,7 +24,7 @@ import {
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import {
   BookHeart,
   StickyNote,
@@ -39,16 +38,12 @@ import {
   Trash2,
   Edit3,
   Calendar,
-  Tag,
-  Image,
-  X,
   Quote,
   Lightbulb,
   Trophy,
   AlertTriangle,
   Zap,
   ThumbsUp,
-  ArrowRight,
   FileText,
 } from 'lucide-react';
 import { ParentingNote, ReflectionRecord, LearningRecord, ImportantExperience, ExperienceCategory } from '@/lib/types';
@@ -406,13 +401,11 @@ export default function ParentingPage() {
           {/* 陪伴笔记 */}
           <TabsContent value="notes">
             <div className="flex justify-end mb-4">
-              <Dialog open={!!noteDialog} onOpenChange={(open) => !open && setNoteDialog(null)}>
-                <DialogTrigger asChild>
-                  <Button className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600" onClick={() => openNoteDialog()}>
-                    <Plus className="w-4 h-4 mr-1" />
-                    写笔记
-                  </Button>
-                </DialogTrigger>
+              <Button className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600" onClick={() => { setNoteDialog({ id: '', childId: undefined, title: '', content: '', tags: [], isPinned: false, createdAt: '', updatedAt: '' }); }}>
+                <Plus className="w-4 h-4 mr-1" />
+                写笔记
+              </Button>
+              <Dialog open={!!noteDialog} onOpenChange={(open) => { if (!open) setNoteDialog(null); }}>
                 <DialogContent className="max-w-lg">
                   <DialogHeader>
                     <DialogTitle>{noteDialog?.id ? '编辑笔记' : '写新笔记'}</DialogTitle>
@@ -488,13 +481,11 @@ export default function ParentingPage() {
           {/* 复盘记录 */}
           <TabsContent value="reflection">
             <div className="flex justify-end mb-4">
-              <Dialog open={!!reflectionDialog} onOpenChange={(open) => !open && setReflectionDialog(null)}>
-                <DialogTrigger asChild>
-                  <Button className="bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600" onClick={() => openReflectionDialog()}>
-                    <Plus className="w-4 h-4 mr-1" />
-                    新增复盘
-                  </Button>
-                </DialogTrigger>
+              <Button className="bg-gradient-to-r from-violet-500 to-purple-500 hover:from-violet-600 hover:to-purple-600" onClick={() => openReflectionDialog()}>
+                <Plus className="w-4 h-4 mr-1" />
+                新增复盘
+              </Button>
+              <Dialog open={!!reflectionDialog} onOpenChange={(open) => { if (!open) setReflectionDialog(null); }}>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>复盘记录</DialogTitle>
@@ -625,13 +616,11 @@ export default function ParentingPage() {
           {/* 学习成长 */}
           <TabsContent value="learning">
             <div className="flex justify-end mb-4">
-              <Dialog open={!!learningDialog} onOpenChange={(open) => !open && setLearningDialog(null)}>
-                <DialogTrigger asChild>
-                  <Button className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600" onClick={() => openLearningDialog()}>
-                    <Plus className="w-4 h-4 mr-1" />
-                    新增学习
-                  </Button>
-                </DialogTrigger>
+              <Button className="bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600" onClick={() => openLearningDialog()}>
+                <Plus className="w-4 h-4 mr-1" />
+                新增学习
+              </Button>
+              <Dialog open={!!learningDialog} onOpenChange={(open) => { if (!open) setLearningDialog(null); }}>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>学习与成长记录</DialogTitle>
@@ -773,13 +762,11 @@ export default function ParentingPage() {
           {/* 重要经验 */}
           <TabsContent value="experiences">
             <div className="flex justify-end mb-4">
-              <Dialog open={!!experienceDialog} onOpenChange={(open) => !open && setExperienceDialog(null)}>
-                <DialogTrigger asChild>
-                  <Button className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600" onClick={() => openExperienceDialog()}>
-                    <Plus className="w-4 h-4 mr-1" />
-                    记录经验
-                  </Button>
-                </DialogTrigger>
+              <Button className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600" onClick={() => openExperienceDialog()}>
+                <Plus className="w-4 h-4 mr-1" />
+                记录经验
+              </Button>
+              <Dialog open={!!experienceDialog} onOpenChange={(open) => { if (!open) setExperienceDialog(null); }}>
                 <DialogContent className="max-w-lg">
                   <DialogHeader>
                     <DialogTitle>重要经验</DialogTitle>
