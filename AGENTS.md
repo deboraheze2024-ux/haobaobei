@@ -191,6 +191,52 @@ AI 目标拆解接口，将成长目标分解为具体可执行的节点。
 }
 ```
 
+## 超级管理员后台
+
+### 访问地址
+- 管理员登录: `/admin/login`
+- 管理员后台: `/admin`
+
+### 默认管理员账号
+- 邮箱: `admin@haobaobei.com`
+- 密码: `admin123`
+
+### API 接口
+
+#### POST /api/admin
+管理员认证接口，支持登录、登出、验证和用户管理。
+
+**请求体**:
+```json
+{
+  "action": "login | logout | verify | stats | get-users | delete-user | get-table-data",
+  "email": "admin@example.com",
+  "password": "password",
+  "token": "admin-session-token",
+  "userId": "user-uuid-to-delete",
+  "table": "table-name",
+  "limit": 100
+}
+```
+
+**响应示例 (stats)**:
+```json
+{
+  "userCount": 10,
+  "tableStats": {
+    "child_profiles": 5,
+    "check_in_records": 20,
+    "growth_goals": 8
+  }
+}
+```
+
+### 功能模块
+
+1. **数据概览**: 显示总用户数、各数据表统计卡片
+2. **用户管理**: 列表展示所有用户及其关联数据统计，支持删除用户
+3. **数据表浏览**: 查看各表的详细数据（用户表、孩子档案、打卡记录、情绪记录等）
+
 ## 知识库
 
 - 位置: `src/lib/knowledge-base.ts`
