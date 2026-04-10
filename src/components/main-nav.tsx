@@ -15,6 +15,7 @@ import {
   Target,
   Settings,
   Heart,
+  BookHeart,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/lib/context';
@@ -28,6 +29,7 @@ const navItems = [
   { href: '/chat', label: 'AI 问答', icon: MessageCircle },
   { href: '/phrases', label: '话术库', icon: BookOpen },
   { href: '/meeting', label: '家庭会议', icon: Users },
+  { href: '/parenting', label: '父母园地', icon: BookHeart },
 ];
 
 export default function MainNav() {

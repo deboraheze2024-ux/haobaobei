@@ -11,6 +11,10 @@ import {
   PhraseCard,
   GrowthGoal,
   GoalNode,
+  ParentingNote,
+  ReflectionRecord,
+  LearningRecord,
+  ImportantExperience,
 } from './types';
 import { storage } from './storage';
 import {
@@ -63,6 +67,25 @@ interface AppState {
   linkNodeToCheckIn: (goalId: string, nodeId: string, period: 'morning' | 'afternoon' | 'evening', taskTitle: string) => void;
   unlinkNodeFromCheckIn: (goalId: string, nodeId: string) => void;
 
+  // 父母园地
+  parentingNotes: ParentingNote[];
+  saveParentingNote: (note: ParentingNote) => void;
+  deleteParentingNote: (noteId: string) => void;
+  toggleNotePin: (noteId: string) => void;
+
+  reflectionRecords: ReflectionRecord[];
+  saveReflectionRecord: (record: ReflectionRecord) => void;
+  deleteReflectionRecord: (recordId: string) => void;
+
+  learningRecords: LearningRecord[];
+  saveLearningRecord: (record: LearningRecord) => void;
+  deleteLearningRecord: (recordId: string) => void;
+
+  importantExperiences: ImportantExperience[];
+  saveImportantExperience: (experience: ImportantExperience) => void;
+  deleteImportantExperience: (id: string) => void;
+  toggleExperienceStar: (id: string) => void;
+
   // 加载状态
   isLoading: boolean;
 }
@@ -82,6 +105,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [phraseCards, setPhraseCards] = useState<PhraseCard[]>(defaultPhraseCards);
   const [growthGoals, setGrowthGoals] = useState<GrowthGoal[]>([]);
   const [activeGoals, setActiveGoals] = useState<GrowthGoal[]>([]);
+
+  // 父母园地状态
+  const [parentingNotes, setParentingNotes] = useState<ParentingNote[]>([]);
+  const [reflectionRecords, setReflectionRecords] = useState<ReflectionRecord[]>([]);
+  const [learningRecords, setLearningRecords] = useState<LearningRecord[]>([]);
+  const [importantExperiences, setImportantExperiences] = useState<ImportantExperience[]>([]);
 
   // 初始化数据
   useEffect(() => {
@@ -106,6 +135,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const allGoals = storage.getGrowthGoals();
         setGrowthGoals(allGoals);
         setActiveGoals(allGoals.filter((g) => g.status === 'active'));
+
+        // 加载父母园地数据
+        setParentingNotes(storage.getParentingNotes());
+        setReflectionRecords(storage.getReflectionRecords());
+        setLearningRecords(storage.getLearningRecords());
+        setImportantExperiences(storage.getImportantExperiences());
       } catch (error) {
         console.error('Failed to load data:', error);
       } finally {
@@ -458,6 +493,124 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     saveGoal(updatedGoal);
   };
 
+  // ============================================
+  // 父母园地 - 陪伴笔记
+  // ============================================
+
+  const saveParentingNote = (note: ParentingNote) => {
+    const updatedNote = {
+      ...note,
+      updatedAt: new Date().toISOString(),
+    };
+    storage.saveParentingNote(updatedNote);
+    setParentingNotes((prev) => {
+      const index = prev.findIndex((n) => n.id === note.id);
+      if (index >= 0) {
+        const updated = [...prev];
+        updated[index] = updatedNote;
+        return updated;
+      }
+      return [...prev, updatedNote];
+    });
+  };
+
+  const deleteParentingNote = (noteId: string) => {
+    storage.deleteParentingNote(noteId);
+    setParentingNotes((prev) => prev.filter((n) => n.id !== noteId));
+  };
+
+  const toggleNotePin = (noteId: string) => {
+    const note = parentingNotes.find((n) => n.id === noteId);
+    if (note) {
+      saveParentingNote({ ...note, isPinned: !note.isPinned });
+    }
+  };
+
+  // ============================================
+  // 父母园地 - 复盘记录
+  // ============================================
+
+  const saveReflectionRecord = (record: ReflectionRecord) => {
+    const updatedRecord = {
+      ...record,
+      updatedAt: new Date().toISOString(),
+    };
+    storage.saveReflectionRecord(updatedRecord);
+    setReflectionRecords((prev) => {
+      const index = prev.findIndex((r) => r.id === record.id);
+      if (index >= 0) {
+        const updated = [...prev];
+        updated[index] = updatedRecord;
+        return updated;
+      }
+      return [...prev, updatedRecord];
+    });
+  };
+
+  const deleteReflectionRecord = (recordId: string) => {
+    storage.deleteReflectionRecord(recordId);
+    setReflectionRecords((prev) => prev.filter((r) => r.id !== recordId));
+  };
+
+  // ============================================
+  // 父母园地 - 学习成长记录
+  // ============================================
+
+  const saveLearningRecord = (record: LearningRecord) => {
+    const updatedRecord = {
+      ...record,
+      updatedAt: new Date().toISOString(),
+    };
+    storage.saveLearningRecord(updatedRecord);
+    setLearningRecords((prev) => {
+      const index = prev.findIndex((r) => r.id === record.id);
+      if (index >= 0) {
+        const updated = [...prev];
+        updated[index] = updatedRecord;
+        return updated;
+      }
+      return [...prev, updatedRecord];
+    });
+  };
+
+  const deleteLearningRecord = (recordId: string) => {
+    storage.deleteLearningRecord(recordId);
+    setLearningRecords((prev) => prev.filter((r) => r.id !== recordId));
+  };
+
+  // ============================================
+  // 父母园地 - 重要经验
+  // ============================================
+
+  const saveImportantExperience = (experience: ImportantExperience) => {
+    const updatedExperience = {
+      ...experience,
+      updatedAt: new Date().toISOString(),
+    };
+    storage.saveImportantExperience(updatedExperience);
+    setImportantExperiences((prev) => {
+      const index = prev.findIndex((e) => e.id === experience.id);
+      if (index >= 0) {
+        const updated = [...prev];
+        updated[index] = updatedExperience;
+        return updated;
+      }
+      return [...prev, updatedExperience];
+    });
+  };
+
+  const deleteImportantExperience = (id: string) => {
+    storage.deleteImportantExperience(id);
+    setImportantExperiences((prev) => prev.filter((e) => e.id !== id));
+  };
+
+  const toggleExperienceStar = (id: string) => {
+    const experience = importantExperiences.find((e) => e.id === id);
+    if (experience) {
+      saveImportantExperience({ ...experience, isStarred: !experience.isStarred });
+    }
+  };
+
   const value: AppState = {
     activeChild,
     childProfiles,
@@ -488,6 +641,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     deleteGoalSubTask,
     linkNodeToCheckIn,
     unlinkNodeFromCheckIn,
+    // 父母园地
+    parentingNotes,
+    saveParentingNote,
+    deleteParentingNote,
+    toggleNotePin,
+    reflectionRecords,
+    saveReflectionRecord,
+    deleteReflectionRecord,
+    learningRecords,
+    saveLearningRecord,
+    deleteLearningRecord,
+    importantExperiences,
+    saveImportantExperience,
+    deleteImportantExperience,
+    toggleExperienceStar,
     isLoading,
   };
 

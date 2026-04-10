@@ -7,6 +7,10 @@ import {
   ChatMessage,
   GrowthGoal,
   AppSettings,
+  ParentingNote,
+  ReflectionRecord,
+  LearningRecord,
+  ImportantExperience,
 } from './types';
 import {
   defaultTaskTemplates,
@@ -216,5 +220,117 @@ export const storage = {
     return this.getGrowthGoals(childId).filter(
       (g) => g.status === 'active'
     );
+  },
+
+  // ============================================
+  // 父母园地 - 陪伴笔记
+  // ============================================
+
+  getParentingNotes(): ParentingNote[] {
+    if (typeof window === 'undefined') return [];
+    const stored = localStorage.getItem(`${STORAGE_KEY}_parentingNotes`);
+    return stored ? JSON.parse(stored) : [];
+  },
+
+  saveParentingNote(note: ParentingNote): void {
+    if (typeof window === 'undefined') return;
+    const notes = this.getParentingNotes();
+    const index = notes.findIndex((n) => n.id === note.id);
+    if (index >= 0) {
+      notes[index] = note;
+    } else {
+      notes.push(note);
+    }
+    localStorage.setItem(`${STORAGE_KEY}_parentingNotes`, JSON.stringify(notes));
+  },
+
+  deleteParentingNote(noteId: string): void {
+    if (typeof window === 'undefined') return;
+    const notes = this.getParentingNotes().filter((n) => n.id !== noteId);
+    localStorage.setItem(`${STORAGE_KEY}_parentingNotes`, JSON.stringify(notes));
+  },
+
+  // ============================================
+  // 父母园地 - 复盘记录
+  // ============================================
+
+  getReflectionRecords(): ReflectionRecord[] {
+    if (typeof window === 'undefined') return [];
+    const stored = localStorage.getItem(`${STORAGE_KEY}_reflectionRecords`);
+    return stored ? JSON.parse(stored) : [];
+  },
+
+  saveReflectionRecord(record: ReflectionRecord): void {
+    if (typeof window === 'undefined') return;
+    const records = this.getReflectionRecords();
+    const index = records.findIndex((r) => r.id === record.id);
+    if (index >= 0) {
+      records[index] = record;
+    } else {
+      records.push(record);
+    }
+    localStorage.setItem(`${STORAGE_KEY}_reflectionRecords`, JSON.stringify(records));
+  },
+
+  deleteReflectionRecord(recordId: string): void {
+    if (typeof window === 'undefined') return;
+    const records = this.getReflectionRecords().filter((r) => r.id !== recordId);
+    localStorage.setItem(`${STORAGE_KEY}_reflectionRecords`, JSON.stringify(records));
+  },
+
+  // ============================================
+  // 父母园地 - 学习成长记录
+  // ============================================
+
+  getLearningRecords(): LearningRecord[] {
+    if (typeof window === 'undefined') return [];
+    const stored = localStorage.getItem(`${STORAGE_KEY}_learningRecords`);
+    return stored ? JSON.parse(stored) : [];
+  },
+
+  saveLearningRecord(record: LearningRecord): void {
+    if (typeof window === 'undefined') return;
+    const records = this.getLearningRecords();
+    const index = records.findIndex((r) => r.id === record.id);
+    if (index >= 0) {
+      records[index] = record;
+    } else {
+      records.push(record);
+    }
+    localStorage.setItem(`${STORAGE_KEY}_learningRecords`, JSON.stringify(records));
+  },
+
+  deleteLearningRecord(recordId: string): void {
+    if (typeof window === 'undefined') return;
+    const records = this.getLearningRecords().filter((r) => r.id !== recordId);
+    localStorage.setItem(`${STORAGE_KEY}_learningRecords`, JSON.stringify(records));
+  },
+
+  // ============================================
+  // 父母园地 - 重要经验
+  // ============================================
+
+  getImportantExperiences(): ImportantExperience[] {
+    if (typeof window === 'undefined') return [];
+    const stored = localStorage.getItem(`${STORAGE_KEY}_importantExperiences`);
+    return stored ? JSON.parse(stored) : [];
+  },
+
+  saveImportantExperience(experience: ImportantExperience): void {
+    if (typeof window === 'undefined') return;
+    const experiences = this.getImportantExperiences();
+    const index = experiences.findIndex((e) => e.id === experience.id);
+    if (index >= 0) {
+      experiences[index] = experience;
+    } else {
+      experiences.push(experience);
+    }
+    localStorage.setItem(`${STORAGE_KEY}_importantExperiences`, JSON.stringify(experiences));
+  },
+
+  deleteImportantExperience(id: string): void {
+    if (typeof window === 'undefined') return;
+    const experiences = this.getImportantExperiences().filter((e) => e.id !== id);
+    localStorage.setItem(`${STORAGE_KEY}_importantExperiences`, JSON.stringify(experiences));
   },
 };

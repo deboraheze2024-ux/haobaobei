@@ -239,3 +239,84 @@ export interface AppSettings {
   phraseCards: PhraseCard[];
   knowledgeBase: KnowledgeEntry[];
 }
+
+// ============================================
+// 父母园地 - 陪伴笔记、复盘记录、学习成长、重要经验
+// ============================================
+
+// 陪伴笔记
+export interface ParentingNote {
+  id: string;
+  childId?: string; // 可选关联的孩子
+  title: string;
+  content: string;
+  tags: string[];
+  isPinned: boolean; // 是否置顶
+  createdAt: string;
+  updatedAt: string;
+}
+
+// 复盘记录
+export interface ReflectionRecord {
+  id: string;
+  childId?: string;
+  title: string;
+  date: string;
+  // 复盘内容
+  situation: string; // 发生了什么
+  thoughts: string; // 当时的想法
+  feelings: string; // 当时的感受
+  actions: string; // 采取了什么行动
+  result: string; // 结果如何
+  // 分析
+  analysis: string; // 分析原因
+  learnings: string; // 学到了什么
+  // 图片
+  images: string[]; // 图片URL数组
+  // 标签
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+// 学习与成长记录
+export interface LearningRecord {
+  id: string;
+  childId?: string;
+  title: string;
+  source: 'book' | 'course' | 'article' | 'experience' | 'other';
+  sourceName?: string; // 如书名、文章标题
+  date: string;
+  // 内容
+  summary: string; // 学习摘要
+  insights: string; // 核心洞察
+  application: string; // 如何应用
+  actionPlan: string; // 行动计划
+  // 图片
+  images: string[];
+  // 标签
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+// 重要经验
+export interface ImportantExperience {
+  id: string;
+  childId?: string;
+  title: string;
+  content: string;
+  category: 'success' | 'challenge' | 'breakthrough' | 'lesson' | 'tip';
+  // 标注
+  isStarred: boolean; // 是否标星
+  highlight: string; // 高亮金句
+  // 相关
+  relatedNotes?: string[]; // 关联的陪伴笔记ID
+  relatedReflections?: string[]; // 关联的复盘记录ID
+  // 标签
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ExperienceCategory = 'success' | 'challenge' | 'breakthrough' | 'lesson' | 'tip';
