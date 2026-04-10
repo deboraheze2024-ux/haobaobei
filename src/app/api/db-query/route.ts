@@ -1,161 +1,196 @@
 /**
  * 数据库查询 API
- * 用于客户端访问 Supabase 数据库
- * 支持用户数据隔离
+ * 提供统一的数据库访问接口
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { query, queryOne } from '@/lib/postgres';
 
-interface DbQueryRequest {
-  table: string;
-  operation: 'select' | 'insert' | 'update' | 'delete';
-  filters?: Record<string, unknown>;
-  data?: Record<string, unknown>;
-  order?: { column: string; ascending?: boolean };
-  limit?: number;
-  single?: boolean;
+// 带重试的数据库操作
+async function withRetry<T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3,
+  delay: number = 1000
+): Promise<T> {
+  let lastError: Error | null = null;
+  
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await operation();
+    } catch (error: any) {
+      lastError = error;
+      if (error?.message?.includes('fetch') || 
+          error?.message?.includes('network') ||
+          error?.message?.includes('timeout') ||
+          error?.code === 'ETIMEDOUT' ||
+          error?.code === 'ECONNRESET') {
+        await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
+        continue;
+      }
+      throw error;
+    }
+  }
+  
+  throw lastError;
 }
 
-// 需要 user_id 的表列表
-const TABLES_WITH_USER_ID = [
-  'child_profiles',
-  'check_in_records',
-  'emotion_records',
-  'family_meetings',
-  'growth_goals',
-  'chat_messages',
-  'phrase_cards',
-  'task_templates',
-  'parenting_notes',
-  'reflection_records',
-  'learning_records',
-  'important_experiences',
-  'app_settings',
-];
+function generateId(): string {
+  return typeof globalThis.crypto?.randomUUID === 'function'
+    ? globalThis.crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
 
 export async function POST(request: NextRequest) {
   try {
-    const body: DbQueryRequest = await request.json();
-    const { table, operation, filters, data, order, limit, single } = body;
-    const client = getSupabaseClient();
-
-    // 获取用户 ID
     const token = request.headers.get('Authorization')?.replace('Bearer ', '');
-    let userId: string | null = null;
-
-    if (token) {
-      // 验证 token 并获取 user_id
-      const { data: session } = await client
-        .from('sessions')
-        .select('user_id')
-        .eq('token', token)
-        .maybeSingle();
-
-      if (session) {
-        userId = session.user_id;
-      }
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    let result;
+    // 验证会话
+    const session = await withRetry(() =>
+      queryOne<any>(
+        'SELECT user_id FROM sessions WHERE token = $1 AND expires_at > NOW()',
+        [token]
+      )
+    );
 
-    switch (operation) {
-      case 'select': {
-        let query = client.from(table).select('*');
-        
-        // 如果表需要 user_id 且有用户登录，添加 user_id 过滤
-        if (TABLES_WITH_USER_ID.includes(table) && userId) {
-          query = query.eq('user_id', userId);
-        }
-        
-        if (filters) {
-          for (const [key, value] of Object.entries(filters)) {
-            query = query.eq(key, value);
-          }
-        }
-        
-        if (order) {
-          query = query.order(order.column, { ascending: order.ascending ?? true });
-        }
-        
-        if (limit) {
-          query = query.limit(limit);
-        }
-        
-        if (single) {
-          result = await query.maybeSingle();
-        } else {
-          result = await query;
-        }
-        break;
-      }
-
-      case 'insert': {
-        // 如果表需要 user_id 且有用户登录，添加 user_id
-        const insertData = { ...data };
-        if (TABLES_WITH_USER_ID.includes(table) && userId) {
-          insertData.user_id = userId;
-        }
-        result = await client.from(table).insert(insertData).select();
-        break;
-      }
-
-      case 'update': {
-        let query = client.from(table).update(data);
-        
-        // 如果表需要 user_id 且有用户登录，添加 user_id 过滤
-        if (TABLES_WITH_USER_ID.includes(table) && userId) {
-          query = query.eq('user_id', userId);
-        }
-        
-        if (filters) {
-          for (const [key, value] of Object.entries(filters)) {
-            query = query.eq(key, value);
-          }
-        }
-        
-        result = await query.select();
-        break;
-      }
-
-      case 'delete': {
-        let query = client.from(table).delete();
-        
-        // 如果表需要 user_id 且有用户登录，添加 user_id 过滤
-        if (TABLES_WITH_USER_ID.includes(table) && userId) {
-          query = query.eq('user_id', userId);
-        }
-        
-        if (filters) {
-          for (const [key, value] of Object.entries(filters)) {
-            query = query.eq(key, value);
-          }
-        }
-        
-        result = await query;
-        break;
-      }
-
-      default:
-        return NextResponse.json(
-          { error: `Unknown operation: ${operation}` },
-          { status: 400 }
-        );
+    if (!session) {
+      return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
     }
 
-    if (result.error) {
+    const { table, operation, filters, data, order, limit = 100, single = false } = await request.json();
+
+    if (!table || !operation) {
       return NextResponse.json(
-        { error: result.error.message },
-        { status: 500 }
+        { error: 'Table and operation are required' },
+        { status: 400 }
       );
     }
 
-    return NextResponse.json({ data: result.data });
-  } catch (error) {
-    console.error('Database query error:', error);
+    const userId = session.user_id;
+    let result;
+
+    switch (operation) {
+      case 'select':
+        result = await handleSelect(table, userId, filters, order, limit, single);
+        break;
+      case 'insert':
+        result = await handleInsert(table, userId, data);
+        break;
+      case 'update':
+        result = await handleUpdate(table, userId, filters, data);
+        break;
+      case 'delete':
+        result = await handleDelete(table, userId, filters);
+        break;
+      default:
+        return NextResponse.json({ error: 'Invalid operation' }, { status: 400 });
+    }
+
+    return NextResponse.json(result);
+  } catch (error: any) {
+    console.error('DB Query error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unknown error' },
+      { error: error.message || 'Database error' },
       { status: 500 }
     );
   }
+}
+
+async function handleSelect(table: string, userId: string, filters?: any, order?: any, limit?: number, single?: boolean) {
+  // 构建 WHERE 条件
+  let whereClause = 'WHERE user_id = $1';
+  const values: any[] = [userId];
+  let paramIndex = 2;
+
+  if (filters) {
+    for (const [key, value] of Object.entries(filters)) {
+      whereClause += ` AND ${key} = $${paramIndex}`;
+      values.push(value);
+      paramIndex++;
+    }
+  }
+
+  // 构建 ORDER BY
+  let orderClause = '';
+  if (order) {
+    orderClause = `ORDER BY ${order.column || 'created_at'} ${order.ascending ? 'ASC' : 'DESC'}`;
+  } else {
+    orderClause = 'ORDER BY created_at DESC';
+  }
+
+  const limitClause = `LIMIT ${limit || 100}`;
+
+  const sql = `SELECT * FROM ${table} ${whereClause} ${orderClause} ${limitClause}`;
+  const result = await withRetry(() => query(sql, values));
+
+  if (single && result.rows.length > 0) {
+    return result.rows[0];
+  }
+
+  return result.rows;
+}
+
+async function handleInsert(table: string, userId: string, data: any) {
+  const id = generateId();
+  const now = new Date().toISOString();
+  
+  const keys = ['id', 'user_id', 'created_at', ...Object.keys(data)];
+  const values = [id, userId, now, ...Object.values(data)];
+  const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+  const columns = keys.join(', ');
+
+  const sql = `INSERT INTO ${table} (${columns}) VALUES (${placeholders}) RETURNING *`;
+  const result = await withRetry(() => query(sql, values));
+
+  return result.rows[0];
+}
+
+async function handleUpdate(table: string, userId: string, filters: any, data: any) {
+  const updates: string[] = ['updated_at = $1'];
+  const values: any[] = [new Date().toISOString()];
+  let paramIndex = 2;
+
+  for (const [key, value] of Object.entries(data)) {
+    updates.push(`${key} = $${paramIndex}`);
+    values.push(value);
+    paramIndex++;
+  }
+
+  let whereClause = 'WHERE user_id = $' + paramIndex;
+  values.push(userId);
+  paramIndex++;
+
+  if (filters) {
+    for (const [key, value] of Object.entries(filters)) {
+      whereClause += ` AND ${key} = $${paramIndex}`;
+      values.push(value);
+      paramIndex++;
+    }
+  }
+
+  const sql = `UPDATE ${table} SET ${updates.join(', ')} ${whereClause} RETURNING *`;
+  const result = await withRetry(() => query(sql, values));
+
+  return result.rows;
+}
+
+async function handleDelete(table: string, userId: string, filters: any) {
+  let whereClause = 'WHERE user_id = $1';
+  const values: any[] = [userId];
+  let paramIndex = 2;
+
+  if (filters) {
+    for (const [key, value] of Object.entries(filters)) {
+      whereClause += ` AND ${key} = $${paramIndex}`;
+      values.push(value);
+      paramIndex++;
+    }
+  }
+
+  const sql = `DELETE FROM ${table} ${whereClause} RETURNING id`;
+  const result = await withRetry(() => query(sql, values));
+
+  return { deleted: result.rowCount };
 }

@@ -1,15 +1,41 @@
 /**
- * 管理员认证 API
- * 支持管理员登录、登出和会话验证
+ * 管理员 API
+ * 支持管理员登录、登出、验证和用户管理
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
+import { query, queryOne } from '@/lib/postgres';
 import { createHash, randomBytes } from 'crypto';
 
-// ============================================
-// 工具函数
-// ============================================
+// 带重试
+async function withRetry<T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3,
+  delay: number = 1000
+): Promise<T> {
+  let lastError: Error | null = null;
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await operation();
+    } catch (error: any) {
+      lastError = error;
+      if (error?.code === 'ETIMEDOUT' || error?.code === 'ECONNRESET') {
+        await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw lastError;
+}
+
+function hashPassword(password: string): string {
+  return createHash('sha256').update(password).digest('hex');
+}
+
+function generateToken(): string {
+  return randomBytes(32).toString('hex');
+}
 
 function generateId(): string {
   return typeof globalThis.crypto?.randomUUID === 'function'
@@ -17,102 +43,66 @@ function generateId(): string {
     : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
-function hashPassword(password: string, salt: string = 'positive-parenting-admin-salt'): string {
-  return createHash('sha256').update(password + salt).digest('hex');
-}
-
-function generateToken(): string {
-  return randomBytes(32).toString('hex');
-}
-
-// ============================================
-// POST /api/admin/auth - 管理员认证
-// ============================================
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { action } = body;
 
-    if (action === 'login') {
-      return handleLogin(body);
-    } else if (action === 'logout') {
-      return handleLogout(request);
-    } else if (action === 'verify') {
-      return handleVerify(request);
-    } else if (action === 'stats') {
-      return handleStats(request);
-    } else if (action === 'get-users') {
-      return handleGetUsers(request);
-    } else if (action === 'delete-user') {
-      return handleDeleteUser(request, body);
-    } else if (action === 'get-table-data') {
-      return handleGetTableData(request, body);
+    switch (action) {
+      case 'login':
+        return await handleLogin(body);
+      case 'logout':
+        return await handleLogout(request);
+      case 'verify':
+        return await handleVerify(request);
+      case 'stats':
+        return await handleStats(request);
+      case 'get-users':
+        return await handleGetUsers(request);
+      case 'delete-user':
+        return await handleDeleteUser(request, body);
+      case 'get-table-data':
+        return await handleGetTableData(request, body);
+      default:
+        return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
-
-    return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
-  } catch (error) {
-    console.error('Admin auth error:', error);
+  } catch (error: any) {
+    console.error('Admin API error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unknown error' },
+      { error: error.message || 'Internal server error' },
       { status: 500 }
     );
   }
 }
 
-// ============================================
-// 处理管理员登录
-// ============================================
-async function handleLogin(data: { email: string; password: string }) {
-  const { email, password } = data;
+async function handleLogin(body: any) {
+  const { email, password } = body;
 
   if (!email || !password) {
-    return NextResponse.json(
-      { error: 'Email and password are required' },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
   }
 
-  const client = getSupabaseClient();
-
-  // 查找管理员
-  const { data: admin, error } = await client
-    .from('admins')
-    .select('*')
-    .eq('email', email)
-    .maybeSingle();
-
-  if (error || !admin) {
-    return NextResponse.json(
-      { error: 'Invalid admin credentials' },
-      { status: 401 }
-    );
-  }
-
-  // 验证密码
   const hashedPassword = hashPassword(password);
-  if (admin.password !== hashedPassword) {
-    return NextResponse.json(
-      { error: 'Invalid admin credentials' },
-      { status: 401 }
-    );
+
+  const admin = await withRetry(() =>
+    queryOne<any>('SELECT * FROM admins WHERE email = $1', [email])
+  );
+
+  if (!admin || admin.password !== hashedPassword) {
+    return NextResponse.json({ error: 'Invalid admin credentials' }, { status: 401 });
   }
 
-  // 更新最后登录时间
-  await client.from('admins').update({
-    last_login_at: new Date().toISOString(),
-  }).eq('id', admin.id);
-
-  // 创建新会话
   const token = generateToken();
   const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 7); // 7天后过期
+  expiresAt.setDate(expiresAt.getDate() + 7);
 
-  await client.from('admin_sessions').insert({
-    id: generateId(),
-    admin_id: admin.id,
-    token,
-    expires_at: expiresAt.toISOString(),
-  });
+  await withRetry(() =>
+    query(
+      `INSERT INTO admin_sessions (id, admin_id, token, expires_at, created_at) 
+       VALUES ($1, $2, $3, $4, $5)`,
+      [generateId(), admin.id, token, expiresAt.toISOString(), new Date().toISOString()]
+    )
+  );
 
   return NextResponse.json({
     success: true,
@@ -126,310 +116,168 @@ async function handleLogin(data: { email: string; password: string }) {
   });
 }
 
-// ============================================
-// 处理登出
-// ============================================
 async function handleLogout(request: NextRequest) {
   const token = request.headers.get('Authorization')?.replace('Bearer ', '');
 
-  if (!token) {
-    return NextResponse.json({ success: true });
+  if (token) {
+    await withRetry(() => query('DELETE FROM admin_sessions WHERE token = $1', [token]));
   }
-
-  const client = getSupabaseClient();
-  await client.from('admin_sessions').delete().eq('token', token);
 
   return NextResponse.json({ success: true });
 }
 
-// ============================================
-// 验证 token
-// ============================================
 async function handleVerify(request: NextRequest) {
   const token = request.headers.get('Authorization')?.replace('Bearer ', '');
 
   if (!token) {
-    return NextResponse.json({ valid: false }, { status: 401 });
+    return NextResponse.json({ error: 'No token provided' }, { status: 401 });
   }
 
-  const client = getSupabaseClient();
-
-  // 查找会话
-  const { data: session } = await client
-    .from('admin_sessions')
-    .select('admin_id, expires_at')
-    .eq('token', token)
-    .maybeSingle();
+  const session = await withRetry(() =>
+    queryOne<any>(
+      `SELECT s.*, a.id as admin_id, a.email, a.name, a.role 
+       FROM admin_sessions s JOIN admins a ON s.admin_id = a.id 
+       WHERE s.token = $1 AND s.expires_at > NOW()`,
+      [token]
+    )
+  );
 
   if (!session) {
-    return NextResponse.json({ valid: false }, { status: 401 });
-  }
-
-  // 检查是否过期
-  if (new Date(session.expires_at) < new Date()) {
-    await client.from('admin_sessions').delete().eq('token', token);
-    return NextResponse.json({ valid: false }, { status: 401 });
-  }
-
-  // 获取管理员信息
-  const { data: admin } = await client
-    .from('admins')
-    .select('id, email, name, role')
-    .eq('id', session.admin_id)
-    .maybeSingle();
-
-  if (!admin) {
-    return NextResponse.json({ valid: false }, { status: 401 });
+    return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
   }
 
   return NextResponse.json({
-    valid: true,
+    success: true,
     admin: {
-      id: admin.id,
-      email: admin.email,
-      name: admin.name,
-      role: admin.role,
+      id: session.admin_id,
+      email: session.email,
+      name: session.name,
+      role: session.role,
     },
   });
 }
 
-// ============================================
-// 获取统计数据
-// ============================================
 async function handleStats(request: NextRequest) {
-  const token = request.headers.get('Authorization')?.replace('Bearer ', '');
+  await verifyAdmin(request);
 
-  if (!token) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const client = getSupabaseClient();
-
-  // 验证管理员
-  const { data: session } = await client
-    .from('admin_sessions')
-    .select('admin_id')
-    .eq('token', token)
-    .maybeSingle();
-
-  if (!session) {
-    return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
-  }
-
-  // 获取用户数量
-  const { count: userCount } = await client
-    .from('users')
-    .select('*', { count: 'exact', head: true });
-
-  // 获取各表数据统计
   const tables = [
-    'child_profiles',
-    'check_in_records',
-    'emotion_records',
-    'family_meetings',
-    'growth_goals',
-    'chat_messages',
-    'phrase_cards',
-    'parenting_notes',
-    'reflection_records',
-    'learning_records',
-    'important_experiences',
+    'users', 'child_profiles', 'check_in_records', 'emotion_records',
+    'family_meetings', 'growth_goals', 'chat_messages', 'phrase_cards',
+    'parenting_notes', 'reflection_records', 'learning_records', 'important_experiences'
   ];
 
   const tableStats: Record<string, number> = {};
-  
+  let userCount = 0;
+
   for (const table of tables) {
-    const { count } = await client
-      .from(table)
-      .select('*', { count: 'exact', head: true });
-    tableStats[table] = count || 0;
+    try {
+      const result = await withRetry(() => query(`SELECT COUNT(*) as count FROM ${table}`));
+      tableStats[table] = parseInt(result.rows[0]?.count || '0');
+      if (table === 'users') userCount = tableStats[table];
+    } catch (e) {
+      tableStats[table] = 0;
+    }
   }
 
+  return NextResponse.json({ userCount, tableStats });
+}
+
+async function handleGetUsers(request: NextRequest) {
+  await verifyAdmin(request);
+
+  const users = await withRetry(() =>
+    query(`
+      SELECT u.id, u.email, u.name, u.created_at, u.last_login_at,
+        (SELECT COUNT(*) FROM child_profiles WHERE user_id = u.id) as child_count,
+        (SELECT COUNT(*) FROM growth_goals WHERE user_id = u.id) as goal_count,
+        (SELECT COUNT(*) FROM family_meetings WHERE user_id = u.id) as meeting_count,
+        (SELECT COUNT(*) FROM parenting_notes WHERE user_id = u.id) as note_count
+      FROM users u ORDER BY u.created_at DESC LIMIT 100
+    `)
+  );
+
   return NextResponse.json({
-    userCount: userCount || 0,
-    tableStats,
+    users: users.rows.map((row: any) => ({
+      id: row.id,
+      email: row.email,
+      name: row.name,
+      created_at: row.created_at,
+      last_login_at: row.last_login_at,
+      childCount: parseInt(row.child_count),
+      goalCount: parseInt(row.goal_count),
+      meetingCount: parseInt(row.meeting_count),
+      noteCount: parseInt(row.note_count),
+    })),
   });
 }
 
-// ============================================
-// 获取用户列表
-// ============================================
-async function handleGetUsers(request: NextRequest) {
-  const token = request.headers.get('Authorization')?.replace('Bearer ', '');
+async function handleDeleteUser(request: NextRequest, body: any) {
+  await verifyAdmin(request);
 
-  if (!token) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const client = getSupabaseClient();
-
-  // 验证管理员
-  const { data: session } = await client
-    .from('admin_sessions')
-    .select('admin_id')
-    .eq('token', token)
-    .maybeSingle();
-
-  if (!session) {
-    return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
-  }
-
-  // 获取所有用户（不包含密码）
-  const { data: users, error } = await client
-    .from('users')
-    .select('id, email, name, created_at, last_login_at')
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  // 获取每个用户的数据统计
-  const usersWithStats = await Promise.all(
-    (users || []).map(async (user) => {
-      const [childCount, goalCount, meetingCount, noteCount] = await Promise.all([
-        client.from('child_profiles').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
-        client.from('growth_goals').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
-        client.from('family_meetings').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
-        client.from('parenting_notes').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
-      ]);
-
-      return {
-        ...user,
-        childCount: childCount.count || 0,
-        goalCount: goalCount.count || 0,
-        meetingCount: meetingCount.count || 0,
-        noteCount: noteCount.count || 0,
-      };
-    })
-  );
-
-  return NextResponse.json({ users: usersWithStats });
-}
-
-// ============================================
-// 删除用户
-// ============================================
-async function handleDeleteUser(request: NextRequest, data: { userId: string }) {
-  const token = request.headers.get('Authorization')?.replace('Bearer ', '');
-
-  if (!token) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const client = getSupabaseClient();
-
-  // 验证管理员
-  const { data: session } = await client
-    .from('admin_sessions')
-    .select('admin_id')
-    .eq('token', token)
-    .maybeSingle();
-
-  if (!session) {
-    return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
-  }
-
-  const { userId } = data;
-
+  const { userId } = body;
   if (!userId) {
-    return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
+    return NextResponse.json({ error: 'User ID required' }, { status: 400 });
   }
 
-  // 删除用户的所有数据
-  const tablesToClean = [
-    'child_profiles',
-    'check_in_records',
-    'emotion_records',
-    'family_meetings',
-    'growth_goals',
-    'chat_messages',
-    'phrase_cards',
-    'task_templates',
-    'parenting_notes',
-    'reflection_records',
-    'learning_records',
-    'important_experiences',
-    'app_settings',
-    'sessions',
+  const tables = [
+    'sessions', 'child_profiles', 'check_in_records', 'emotion_records',
+    'family_meetings', 'growth_goals', 'chat_messages', 'phrase_cards',
+    'task_templates', 'parenting_notes', 'reflection_records', 
+    'learning_records', 'important_experiences', 'app_settings'
   ];
 
-  for (const table of tablesToClean) {
-    await client.from(table).delete().eq('user_id', userId);
+  for (const table of tables) {
+    try {
+      await withRetry(() => query(`DELETE FROM ${table} WHERE user_id = $1`, [userId]));
+    } catch (e) {}
   }
 
-  // 删除用户
-  const { error } = await client.from('users').delete().eq('id', userId);
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  await withRetry(() => query('DELETE FROM users WHERE id = $1', [userId]));
 
   return NextResponse.json({ success: true });
 }
 
-// ============================================
-// 获取指定表的数据
-// ============================================
-async function handleGetTableData(request: NextRequest, data: { table: string; limit?: number; offset?: number }) {
-  const token = request.headers.get('Authorization')?.replace('Bearer ', '');
+async function handleGetTableData(request: NextRequest, body: any) {
+  await verifyAdmin(request);
 
-  if (!token) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const { table, limit = 100 } = body;
+  if (!table) {
+    return NextResponse.json({ error: 'Table name required' }, { status: 400 });
   }
 
-  const client = getSupabaseClient();
-
-  // 验证管理员
-  const { data: session } = await client
-    .from('admin_sessions')
-    .select('admin_id')
-    .eq('token', token)
-    .maybeSingle();
-
-  if (!session) {
-    return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
-  }
-
-  const { table, limit = 50, offset = 0 } = data;
-
-  // 允许查看的表
-  const allowedTables = [
-    'users',
-    'child_profiles',
-    'check_in_records',
-    'emotion_records',
-    'family_meetings',
-    'growth_goals',
-    'chat_messages',
-    'phrase_cards',
-    'task_templates',
-    'parenting_notes',
-    'reflection_records',
-    'learning_records',
-    'important_experiences',
-    'app_settings',
-    'sessions',
+  // 防止 SQL 注入
+  const safeTables = [
+    'users', 'sessions', 'admins', 'admin_sessions', 'child_profiles',
+    'check_in_records', 'emotion_records', 'family_meetings', 'growth_goals',
+    'chat_messages', 'phrase_cards', 'task_templates', 'parenting_notes',
+    'reflection_records', 'learning_records', 'important_experiences', 'app_settings'
   ];
 
-  if (!allowedTables.includes(table)) {
-    return NextResponse.json({ error: 'Table not allowed' }, { status: 400 });
+  if (!safeTables.includes(table)) {
+    return NextResponse.json({ error: 'Invalid table' }, { status: 400 });
   }
 
-  const { data: rows, error, count } = await client
-    .from(table)
-    .select('*', { count: 'exact' })
-    .range(offset, offset + limit - 1)
-    .order('created_at', { ascending: false });
+  const result = await withRetry(() =>
+    query(`SELECT * FROM ${table} ORDER BY created_at DESC LIMIT $1`, [limit])
+  );
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  return { data: result.rows, count: result.rowCount };
+}
+
+async function verifyAdmin(request: NextRequest) {
+  const token = request.headers.get('Authorization')?.replace('Bearer ', '');
+  if (!token) {
+    throw new Error('Unauthorized');
   }
 
-  return NextResponse.json({
-    data: rows,
-    count: count || 0,
-    limit,
-    offset,
-  });
+  const session = await withRetry(() =>
+    queryOne<any>(
+      'SELECT admin_id FROM admin_sessions WHERE token = $1 AND expires_at > NOW()',
+      [token]
+    )
+  );
+
+  if (!session) {
+    throw new Error('Unauthorized');
+  }
 }

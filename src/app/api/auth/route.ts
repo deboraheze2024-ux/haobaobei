@@ -4,8 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/storage/database/supabase-client';
-import { SupabaseClient } from '@supabase/supabase-js';
+import { query, queryOne } from '@/lib/postgres';
 import { createHash, randomBytes } from 'crypto';
 
 // ============================================
@@ -25,12 +24,11 @@ async function withRetry<T>(
       return await operation();
     } catch (error: any) {
       lastError = error;
-      // 如果是网络错误，等待后重试
       if (error?.message?.includes('fetch') || 
           error?.message?.includes('network') ||
           error?.message?.includes('timeout') ||
-          error?.cause?.code === 'ETIMEDOUT' ||
-          error?.code === 'ETIMEDOUT') {
+          error?.code === 'ETIMEDOUT' ||
+          error?.code === 'ECONNRESET') {
         await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
         continue;
       }
@@ -48,7 +46,7 @@ function generateId(): string {
 }
 
 function hashPassword(password: string): string {
-  return createHash('sha256').update(password + 'positive-parenting-salt').digest('hex');
+  return createHash('sha256').update(password).digest('hex');
 }
 
 function generateToken(): string {
@@ -56,47 +54,91 @@ function generateToken(): string {
 }
 
 // ============================================
-// POST /api/auth/register - 用户注册
+// 默认数据
 // ============================================
+
+const defaultPhraseCards = [
+  { category: 'win_cooperation', title: '表达理解', content: '我理解你感到沮丧，因为...', situation: '孩子情绪激动时' },
+  { category: 'win_cooperation', title: '表达感受', content: '我感到...因为...', situation: '需要表达自己感受时' },
+  { category: 'win_cooperation', title: '肯定孩子', content: '我相信你能...', situation: '鼓励孩子时' },
+  { category: 'heuristic', title: '启发思考', content: '你觉得怎么做比较好？', situation: '需要孩子自己做决定时' },
+  { category: 'heuristic', title: '探索感受', content: '你现在的感受是什么？', situation: '帮助孩子识别情绪时' },
+  { category: 'emotion', title: '情绪命名', content: '你现在是不是感到...（愤怒/伤心/害怕）？', situation: '帮助孩子命名情绪时' },
+  { category: 'positive', title: '关注进步', content: '我注意到你...这真的很棒！', situation: '关注孩子积极行为时' },
+  { category: 'daily', title: '日常问候', content: '今天过得怎么样？', situation: '日常对话时' },
+];
+
+const defaultTaskTemplates = [
+  { period: 'morning', title: '起床整理', icon: 'sunrise', sortOrder: 1 },
+  { period: 'morning', title: '早餐时光', icon: 'coffee', sortOrder: 2 },
+  { period: 'morning', title: '上学准备', icon: 'backpack', sortOrder: 3 },
+  { period: 'afternoon', title: '午休/午点', icon: 'utensils', sortOrder: 1 },
+  { period: 'afternoon', title: '学习时间', icon: 'book', sortOrder: 2 },
+  { period: 'afternoon', title: '户外活动', icon: 'running', sortOrder: 3 },
+  { period: 'evening', title: '晚餐时光', icon: 'utensils', sortOrder: 1 },
+  { period: 'evening', title: '家庭时光', icon: 'home', sortOrder: 2 },
+  { period: 'evening', title: '睡前准备', icon: 'moon', sortOrder: 3 },
+];
+
+async function createDefaultPhraseCards(userId: string) {
+  for (const card of defaultPhraseCards) {
+    await query(
+      `INSERT INTO phrase_cards (id, user_id, category, title, content, situation) 
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [generateId(), userId, card.category, card.title, card.content, card.situation]
+    );
+  }
+}
+
+async function createDefaultTaskTemplates(userId: string) {
+  for (const task of defaultTaskTemplates) {
+    await query(
+      `INSERT INTO task_templates (id, user_id, period, title, icon, sort_order) 
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [generateId(), userId, task.period, task.title, task.icon, task.sortOrder]
+    );
+  }
+}
+
+// ============================================
+// API 处理器
+// ============================================
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { action } = body;
+    const { action, email, password, name } = body;
 
-    if (action === 'register') {
-      return handleRegister(body);
-    } else if (action === 'login') {
-      return handleLogin(body);
-    } else if (action === 'logout') {
-      return handleLogout(request);
-    } else if (action === 'verify') {
-      return handleVerify(request);
-    } else if (action === 'update-profile') {
-      return handleUpdateProfile(request, body);
-    } else if (action === 'get-profile') {
-      return handleGetProfile(request);
+    switch (action) {
+      case 'register':
+        return await handleRegister(email, password, name);
+      case 'login':
+        return await handleLogin(email, password);
+      case 'logout':
+        return await handleLogout(request);
+      case 'verify':
+        return await handleVerify(request);
+      case 'update-profile':
+        return await handleUpdateProfile(request, body);
+      case 'get-profile':
+        return await handleGetProfile(request);
+      default:
+        return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
-
-    return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
-  } catch (error) {
-    console.error('Auth error:', error);
+  } catch (error: any) {
+    console.error('Auth API error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unknown error' },
+      { error: error.message || 'Internal server error' },
       { status: 500 }
     );
   }
 }
 
 // ============================================
-// 处理注册
+// 处理函数
 // ============================================
-async function handleRegister(data: {
-  email: string;
-  password: string;
-  name?: string;
-}) {
-  const { email, password, name } = data;
 
+async function handleRegister(email: string, password: string, name?: string) {
   if (!email || !password) {
     return NextResponse.json(
       { error: 'Email and password are required' },
@@ -111,11 +153,9 @@ async function handleRegister(data: {
     );
   }
 
-  const client = getSupabaseClient();
-
-  // 检查邮箱是否已存在（带重试）
-  const { data: existing } = await withRetry(() =>
-    client.from('users').select('id').eq('email', email).maybeSingle()
+  // 检查邮箱是否已存在
+  const existing = await withRetry(() =>
+    queryOne('SELECT id FROM users WHERE email = $1', [email])
   );
 
   if (existing) {
@@ -130,42 +170,29 @@ async function handleRegister(data: {
   const hashedPassword = hashPassword(password);
   const now = new Date().toISOString();
 
-  const { error: insertError } = await withRetry(() =>
-    client.from('users').insert({
-      id: userId,
-      email,
-      password: hashedPassword,
-      name: name || email.split('@')[0],
-      created_at: now,
-      updated_at: now,
-    })
+  await withRetry(() =>
+    query(
+      `INSERT INTO users (id, email, password, name, created_at, updated_at) 
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [userId, email, hashedPassword, name || email.split('@')[0], now, now]
+    )
   );
 
-  if (insertError) {
-    return NextResponse.json(
-      { error: 'Failed to create user: ' + insertError.message },
-      { status: 500 }
-    );
-  }
-
-  // 创建默认话术卡片
-  await withRetry(() => createDefaultPhraseCards(client, userId));
-
-  // 创建默认任务模板
-  await withRetry(() => createDefaultTaskTemplates(client, userId));
+  // 创建默认数据
+  await withRetry(() => createDefaultPhraseCards(userId));
+  await withRetry(() => createDefaultTaskTemplates(userId));
 
   // 创建会话
   const token = generateToken();
   const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 30); // 30天后过期
+  expiresAt.setDate(expiresAt.getDate() + 30);
 
   await withRetry(() =>
-    client.from('sessions').insert({
-      id: generateId(),
-      user_id: userId,
-      token,
-      expires_at: expiresAt.toISOString(),
-    })
+    query(
+      `INSERT INTO sessions (id, user_id, token, expires_at, created_at) 
+       VALUES ($1, $2, $3, $4, $5)`,
+      [generateId(), userId, token, expiresAt.toISOString(), now]
+    )
   );
 
   return NextResponse.json({
@@ -179,12 +206,7 @@ async function handleRegister(data: {
   });
 }
 
-// ============================================
-// 处理登录
-// ============================================
-async function handleLogin(data: { email: string; password: string }) {
-  const { email, password } = data;
-
+async function handleLogin(email: string, password: string) {
   if (!email || !password) {
     return NextResponse.json(
       { error: 'Email and password are required' },
@@ -192,14 +214,12 @@ async function handleLogin(data: { email: string; password: string }) {
     );
   }
 
-  const client = getSupabaseClient();
-
-  // 查找用户（带重试）
-  const { data: user, error } = await withRetry(() =>
-    client.from('users').select('*').eq('email', email).maybeSingle()
+  // 查找用户
+  const user = await withRetry(() =>
+    queryOne<any>('SELECT * FROM users WHERE email = $1', [email])
   );
 
-  if (error || !user) {
+  if (!user) {
     return NextResponse.json(
       { error: 'Invalid email or password' },
       { status: 401 }
@@ -217,9 +237,10 @@ async function handleLogin(data: { email: string; password: string }) {
 
   // 更新最后登录时间
   await withRetry(() =>
-    client.from('users').update({
-      last_login_at: new Date().toISOString(),
-    }).eq('id', user.id)
+    query(
+      'UPDATE users SET last_login_at = $1 WHERE id = $2',
+      [new Date().toISOString(), user.id]
+    )
   );
 
   // 创建新会话
@@ -228,12 +249,12 @@ async function handleLogin(data: { email: string; password: string }) {
   expiresAt.setDate(expiresAt.getDate() + 30);
 
   await withRetry(() =>
-    client.from('sessions').insert({
-      id: generateId(),
-    user_id: user.id,
-    token,
-    expires_at: expiresAt.toISOString(),
-  });
+    query(
+      `INSERT INTO sessions (id, user_id, token, expires_at, created_at) 
+       VALUES ($1, $2, $3, $4, $5)`,
+      [generateId(), user.id, token, expiresAt.toISOString(), new Date().toISOString()]
+    )
+  );
 
   return NextResponse.json({
     success: true,
@@ -246,221 +267,122 @@ async function handleLogin(data: { email: string; password: string }) {
   });
 }
 
-// ============================================
-// 处理登出
-// ============================================
 async function handleLogout(request: NextRequest) {
   const token = request.headers.get('Authorization')?.replace('Bearer ', '');
 
-  if (!token) {
-    return NextResponse.json({ success: true });
-  }
-
-  const client = getSupabaseClient();
-  await client.from('sessions').delete().eq('token', token);
-
-  return NextResponse.json({ success: true });
-}
-
-// ============================================
-// 验证 token
-// ============================================
-async function handleVerify(request: NextRequest) {
-  const token = request.headers.get('Authorization')?.replace('Bearer ', '');
-
-  if (!token) {
-    return NextResponse.json({ valid: false }, { status: 401 });
-  }
-
-  const client = getSupabaseClient();
-
-  // 查找会话
-  const { data: session } = await client
-    .from('sessions')
-    .select('user_id, expires_at')
-    .eq('token', token)
-    .maybeSingle();
-
-  if (!session) {
-    return NextResponse.json({ valid: false }, { status: 401 });
-  }
-
-  // 检查是否过期
-  if (new Date(session.expires_at) < new Date()) {
-    await client.from('sessions').delete().eq('token', token);
-    return NextResponse.json({ valid: false }, { status: 401 });
-  }
-
-  // 获取用户信息
-  const { data: user } = await client
-    .from('users')
-    .select('id, email, name, avatar')
-    .eq('id', session.user_id)
-    .maybeSingle();
-
-  if (!user) {
-    return NextResponse.json({ valid: false }, { status: 401 });
-  }
-
-  return NextResponse.json({
-    valid: true,
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      avatar: user.avatar,
-    },
-  });
-}
-
-// ============================================
-// 获取用户资料
-// ============================================
-async function handleGetProfile(request: NextRequest) {
-  const token = request.headers.get('Authorization')?.replace('Bearer ', '');
-
-  if (!token) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const client = getSupabaseClient();
-
-  const { data: session } = await client
-    .from('sessions')
-    .select('user_id')
-    .eq('token', token)
-    .maybeSingle();
-
-  if (!session) {
-    return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
-  }
-
-  const { data: user } = await client
-    .from('users')
-    .select('id, email, name, avatar, created_at, last_login_at')
-    .eq('id', session.user_id)
-    .maybeSingle();
-
-  if (!user) {
-    return NextResponse.json({ error: 'User not found' }, { status: 404 });
-  }
-
-  return NextResponse.json({ user });
-}
-
-// ============================================
-// 更新用户资料
-// ============================================
-async function handleUpdateProfile(request: NextRequest, data: {
-  name?: string;
-  avatar?: string;
-}) {
-  const token = request.headers.get('Authorization')?.replace('Bearer ', '');
-
-  if (!token) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const client = getSupabaseClient();
-
-  const { data: session } = await client
-    .from('sessions')
-    .select('user_id')
-    .eq('token', token)
-    .maybeSingle();
-
-  if (!session) {
-    return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
-  }
-
-  const { error } = await client.from('users').update({
-    name: data.name,
-    avatar: data.avatar,
-    updated_at: new Date().toISOString(),
-  }).eq('id', session.user_id);
-
-  if (error) {
-    return NextResponse.json(
-      { error: 'Failed to update profile' },
-      { status: 500 }
+  if (token) {
+    await withRetry(() =>
+      query('DELETE FROM sessions WHERE token = $1', [token])
     );
   }
 
   return NextResponse.json({ success: true });
 }
 
-// ============================================
-// 创建默认话术卡片
-// ============================================
-interface DefaultCard {
-  category: string;
-  title: string;
-  content: string;
-  situation: string;
-}
+async function handleVerify(request: NextRequest) {
+  const token = request.headers.get('Authorization')?.replace('Bearer ', '');
 
-async function createDefaultPhraseCards(client: SupabaseClient, userId: string) {
-  const defaultCards: DefaultCard[] = [
-    { category: '赢得合作', title: '表达理解', content: '我能看出来你真的很生气。你希望能自己决定什么时候做作业，对吗？', situation: '孩子抗拒做作业时' },
-    { category: '赢得合作', title: '表达感受', content: '当你...的时候，我感到...，因为...', situation: '引导孩子理解他人感受' },
-    { category: '启发式提问', title: '探索原因', content: '你觉得为什么会出现这个问题呢？', situation: '问题解决前的引导' },
-    { category: '启发式提问', title: '引导思考', content: '你对这个有什么想法？我们一起想想有什么办法。', situation: '需要孩子参与解决方案' },
-    { category: '情绪调节', title: '接纳情绪', content: '我理解你现在很难过。每个人都会有难过的时候。', situation: '孩子情绪崩溃时' },
-    { category: '情绪调节', title: '命名情绪', content: '你现在感到...对吗？让我们一起把这些情绪说出来。', situation: '帮助孩子识别情绪' },
-    { category: '正向引导', title: '关注进步', content: '我注意到你这次...做得很好！你是怎么做到的？', situation: '肯定孩子的努力' },
-    { category: '正向引导', title: '强调优点', content: '你真的很擅长...！这让我很骄傲。', situation: '强化孩子的自信心' },
-    { category: '日常互动', title: '日常致谢', content: '谢谢你...，这让我感到很温暖。', situation: '日常生活中表达感激' },
-    { category: '日常互动', title: '陪伴时光', content: '我很喜欢和你一起...的时候，那是我们的特别时光。', situation: '增进亲子关系' },
-  ];
-
-  for (const card of defaultCards) {
-    await client.from('phrase_cards').insert({
-      id: generateId(),
-      user_id: userId,
-      category: card.category,
-      title: card.title,
-      content: card.content,
-      situation: card.situation,
-      is_favorite: false,
-      tags: [],
-    });
+  if (!token) {
+    return NextResponse.json({ error: 'No token provided' }, { status: 401 });
   }
-}
 
-// ============================================
-// 创建默认任务模板
-// ============================================
-interface DefaultTemplate {
-  period: string;
-  title: string;
-  icon: string;
-  description: string;
-}
+  const session = await withRetry(() =>
+    queryOne<any>(
+      `SELECT s.*, u.id as user_id, u.email, u.name, u.avatar 
+       FROM sessions s JOIN users u ON s.user_id = u.id 
+       WHERE s.token = $1 AND s.expires_at > NOW()`,
+      [token]
+    )
+  );
 
-async function createDefaultTaskTemplates(client: SupabaseClient, userId: string) {
-  const defaultTemplates: DefaultTemplate[] = [
-    // 早晨任务
-    { period: 'morning', title: '起床整理', icon: '🌅', description: '自己起床、穿衣服、整理床铺' },
-    { period: 'morning', title: '个人卫生', icon: '🪥', description: '刷牙、洗脸、梳头' },
-    { period: 'morning', title: '营养早餐', icon: '🍳', description: '吃早餐（不挑食）' },
-    // 日间任务
-    { period: 'afternoon', title: '专心学习', icon: '📚', description: '完成学校作业' },
-    { period: 'afternoon', title: '户外活动', icon: '⚽', description: '户外运动或游戏' },
-    { period: 'afternoon', title: '兴趣爱好', icon: '🎨', description: '画画、音乐、阅读等' },
-    // 晚间任务
-    { period: 'evening', title: '整理书包', icon: '🎒', description: '整理好第二天要带的东西' },
-    { period: 'evening', title: '洗漱准备', icon: '🛁', description: '洗澡、刷牙、准备睡觉' },
-    { period: 'evening', title: '亲子阅读', icon: '📖', description: '和家长一起读书' },
-  ];
-
-  for (const template of defaultTemplates) {
-    await client.from('task_templates').insert({
-      id: generateId(),
-      user_id: userId,
-      period: template.period,
-      title: template.title,
-      description: template.description,
-      icon: template.icon,
-    });
+  if (!session) {
+    return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
   }
+
+  return NextResponse.json({
+    success: true,
+    user: {
+      id: session.user_id,
+      email: session.email,
+      name: session.name,
+      avatar: session.avatar,
+    },
+  });
+}
+
+async function handleUpdateProfile(request: NextRequest, body: any) {
+  const token = request.headers.get('Authorization')?.replace('Bearer ', '');
+
+  if (!token) {
+    return NextResponse.json({ error: 'No token provided' }, { status: 401 });
+  }
+
+  const session = await withRetry(() =>
+    queryOne<any>(
+      'SELECT user_id FROM sessions WHERE token = $1 AND expires_at > NOW()',
+      [token]
+    )
+  );
+
+  if (!session) {
+    return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+  }
+
+  const { name, avatar } = body;
+  const updates: string[] = [];
+  const values: any[] = [];
+  let paramIndex = 1;
+
+  if (name !== undefined) {
+    updates.push(`name = $${paramIndex++}`);
+    values.push(name);
+  }
+  if (avatar !== undefined) {
+    updates.push(`avatar = $${paramIndex++}`);
+    values.push(avatar);
+  }
+  updates.push(`updated_at = $${paramIndex++}`);
+  values.push(new Date().toISOString());
+  values.push(session.user_id);
+
+  await withRetry(() =>
+    query(
+      `UPDATE users SET ${updates.join(', ')} WHERE id = $${paramIndex}`,
+      values
+    )
+  );
+
+  return NextResponse.json({ success: true });
+}
+
+async function handleGetProfile(request: NextRequest) {
+  const token = request.headers.get('Authorization')?.replace('Bearer ', '');
+
+  if (!token) {
+    return NextResponse.json({ error: 'No token provided' }, { status: 401 });
+  }
+
+  const session = await withRetry(() =>
+    queryOne<any>(
+      `SELECT u.id, u.email, u.name, u.avatar, u.created_at 
+       FROM sessions s JOIN users u ON s.user_id = u.id 
+       WHERE s.token = $1 AND s.expires_at > NOW()`,
+      [token]
+    )
+  );
+
+  if (!session) {
+    return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+  }
+
+  return NextResponse.json({
+    success: true,
+    user: {
+      id: session.id,
+      email: session.email,
+      name: session.name,
+      avatar: session.avatar,
+      createdAt: session.created_at,
+    },
+  });
 }
