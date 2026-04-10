@@ -91,6 +91,7 @@ export default function ParentingPage() {
   // 笔记相关状态
   const [noteDialog, setNoteDialog] = useState<ParentingNote | null>(null);
   const [noteForm, setNoteForm] = useState({ title: '', content: '', tags: '' });
+  const [isNoteDialogOpen, setIsNoteDialogOpen] = useState(false);
 
   // 复盘相关状态
   const [reflectionDialog, setReflectionDialog] = useState<ReflectionRecord | null>(null);
@@ -99,6 +100,7 @@ export default function ParentingPage() {
     situation: '', thoughts: '', feelings: '', actions: '', result: '',
     analysis: '', learnings: '', images: '', tags: '',
   });
+  const [isReflectionDialogOpen, setIsReflectionDialogOpen] = useState(false);
 
   // 学习记录相关状态
   const [learningDialog, setLearningDialog] = useState<LearningRecord | null>(null);
@@ -106,6 +108,7 @@ export default function ParentingPage() {
     title: '', source: 'book' as const, sourceName: '', date: format(new Date(), 'yyyy-MM-dd'),
     summary: '', insights: '', application: '', actionPlan: '', images: '', tags: '',
   });
+  const [isLearningDialogOpen, setIsLearningDialogOpen] = useState(false);
 
   // 重要经验相关状态
   const [experienceDialog, setExperienceDialog] = useState<ImportantExperience | null>(null);
@@ -113,6 +116,7 @@ export default function ParentingPage() {
     title: '', content: '', category: 'tip' as ExperienceCategory,
     highlight: '', tags: '',
   });
+  const [isExperienceDialogOpen, setIsExperienceDialogOpen] = useState(false);
 
   // 过滤数据
   const filteredNotes = parentingNotes.filter((n) =>
@@ -244,6 +248,7 @@ export default function ParentingPage() {
       tags: note?.tags.join(', ') || '',
     });
     setNoteDialog(note || null);
+    setIsNoteDialogOpen(true);
   };
 
   const openReflectionDialog = (record?: ReflectionRecord) => {
@@ -261,6 +266,7 @@ export default function ParentingPage() {
       tags: record?.tags.join(', ') || '',
     });
     setReflectionDialog(record || null);
+    setIsReflectionDialogOpen(true);
   };
 
   const openLearningDialog = (record?: LearningRecord) => {
@@ -277,6 +283,7 @@ export default function ParentingPage() {
       tags: record?.tags.join(', ') || '',
     });
     setLearningDialog(record || null);
+    setIsLearningDialogOpen(true);
   };
 
   const openExperienceDialog = (exp?: ImportantExperience) => {
@@ -288,6 +295,7 @@ export default function ParentingPage() {
       tags: exp?.tags.join(', ') || '',
     });
     setExperienceDialog(exp || null);
+    setIsExperienceDialogOpen(true);
   };
 
   return (
@@ -405,7 +413,7 @@ export default function ParentingPage() {
                 <Plus className="w-4 h-4 mr-1" />
                 写笔记
               </Button>
-              <Dialog open={!!noteDialog} onOpenChange={(open) => { if (!open) setNoteDialog(null); }}>
+              <Dialog open={isNoteDialogOpen} onOpenChange={(open) => { setIsNoteDialogOpen(open); if (!open) setNoteDialog(null); }}>
                 <DialogContent className="max-w-lg">
                   <DialogHeader>
                     <DialogTitle>{noteDialog?.id ? '编辑笔记' : '写新笔记'}</DialogTitle>
@@ -485,7 +493,7 @@ export default function ParentingPage() {
                 <Plus className="w-4 h-4 mr-1" />
                 新增复盘
               </Button>
-              <Dialog open={!!reflectionDialog} onOpenChange={(open) => { if (!open) setReflectionDialog(null); }}>
+              <Dialog open={isReflectionDialogOpen} onOpenChange={(open) => { setIsReflectionDialogOpen(open); if (!open) setReflectionDialog(null); }}>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>复盘记录</DialogTitle>
@@ -620,7 +628,7 @@ export default function ParentingPage() {
                 <Plus className="w-4 h-4 mr-1" />
                 新增学习
               </Button>
-              <Dialog open={!!learningDialog} onOpenChange={(open) => { if (!open) setLearningDialog(null); }}>
+              <Dialog open={isLearningDialogOpen} onOpenChange={(open) => { setIsLearningDialogOpen(open); if (!open) setLearningDialog(null); }}>
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>学习与成长记录</DialogTitle>
@@ -766,7 +774,7 @@ export default function ParentingPage() {
                 <Plus className="w-4 h-4 mr-1" />
                 记录经验
               </Button>
-              <Dialog open={!!experienceDialog} onOpenChange={(open) => { if (!open) setExperienceDialog(null); }}>
+              <Dialog open={isExperienceDialogOpen} onOpenChange={(open) => { setIsExperienceDialogOpen(open); if (!open) setExperienceDialog(null); }}>
                 <DialogContent className="max-w-lg">
                   <DialogHeader>
                     <DialogTitle>重要经验</DialogTitle>
