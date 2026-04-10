@@ -1,56 +1,111 @@
-# 项目上下文
+# 正面管教成长陪伴系统 (Positive Parenting Companion)
 
-### 版本技术栈
+## 项目概览
+
+这是一个基于《正面管教》理念的成长陪伴系统，核心差异在于所有 AI 回答都以正面管教书籍为知识根基，结合孩子的具体档案给出个性化建议。
+
+### 技术栈
 
 - **Framework**: Next.js 16 (App Router)
 - **Core**: React 19
 - **Language**: TypeScript 5
 - **UI 组件**: shadcn/ui (基于 Radix UI)
 - **Styling**: Tailwind CSS 4
+- **AI**: coze-coding-dev-sdk (流式输出)
+- **存储**: localStorage (本地优先)
 
 ## 目录结构
 
 ```
-├── public/                 # 静态资源
-├── scripts/                # 构建与启动脚本
-│   ├── build.sh            # 构建脚本
-│   ├── dev.sh              # 开发环境启动脚本
-│   ├── prepare.sh          # 预处理脚本
-│   └── start.sh            # 生产环境启动脚本
-├── src/
-│   ├── app/                # 页面路由与布局
-│   ├── components/ui/      # Shadcn UI 组件库
-│   ├── hooks/              # 自定义 Hooks
-│   ├── lib/                # 工具库
-│   │   └── utils.ts        # 通用工具函数 (cn)
-│   └── server.ts           # 自定义服务端入口
-├── next.config.ts          # Next.js 配置
-├── package.json            # 项目依赖管理
-└── tsconfig.json           # TypeScript 配置
+src/
+├── app/
+│   ├── api/chat/route.ts    # AI 对话 API
+│   ├── checkin/page.tsx     # 今日打卡
+│   ├── chat/page.tsx        # AI 问答助手
+│   ├── meeting/page.tsx      # 家庭会议
+│   ├── phrases/page.tsx      # 话术速查库
+│   ├── profile/page.tsx      # 成长档案
+│   ├── layout.tsx           # 根布局
+│   └── page.tsx             # 首页
+├── components/              # 组件
+├── lib/
+│   ├── types.ts             # 类型定义
+│   ├── knowledge-base.ts     # 正面管教知识库
+│   ├── storage.ts           # localStorage 管理
+│   └── context.tsx          # React Context
 ```
 
-- 项目文件（如 app 目录、pages 目录、components 等）默认初始化到 `src/` 目录下。
+## 五大核心模块
 
-## 包管理规范
+### 1. 今日打卡 (`/checkin`)
+- 早晨/日间/晚间三段任务
+- 基于《正面管教》第7章的日常惯例表
+- 进度追踪和可视化
 
-**仅允许使用 pnpm** 作为包管理器，**严禁使用 npm 或 yarn**。
-**常用命令**：
-- 安装依赖：`pnpm add <package>`
-- 安装开发依赖：`pnpm add -D <package>`
-- 安装所有依赖：`pnpm install`
-- 移除依赖：`pnpm remove <package>`
+### 2. 成长档案 (`/profile`)
+- 情绪追踪（10种情绪类型 + 强度）
+- 行为模式记录（基于"四个错误目的"理论）
+- 近7天数据统计
 
-## 开发规范
+### 3. AI 问答助手 (`/chat`)
+- 基于118页正面管教内容的 RAG 知识库
+- 流式输出（SSE 协议）
+- 结合孩子档案的个性化建议
+- 引用来源章节
 
-### Hydration 问题防范
+### 4. 话术速查库 (`/phrases`)
+- 20+ 实用话术卡片
+- 按场景分类（赢得合作/启发式提问/情绪调节等）
+- 搜索和收藏功能
 
-1. 严禁在 JSX 渲染逻辑中直接使用 typeof window、Date.now()、Math.random() 等动态数据。**必须使用 'use client' 并配合 useEffect + useState 确保动态内容仅在客户端挂载后渲染**；同时严禁非法 HTML 嵌套（如 <p> 嵌套 <div>）。
-2. **禁止使用 head 标签**，优先使用 metadata，详见文档：https://nextjs.org/docs/app/api-reference/functions/generate-metadata
-   1. 三方 CSS、字体等资源可在 `globals.css` 中顶部通过 `@import` 引入或使用 next/font
-   2. preload, preconnect, dns-prefetch 通过 ReactDOM 的 preload、preconnect、dns-prefetch 方法引入
-   3. json-ld 可阅读 https://nextjs.org/docs/app/guides/json-ld
+### 5. 家庭会议 (`/meeting`)
+- 完整6步流程：致谢→议题→头脑风暴→决策→娱乐计划→记录
+- 历史会议归档
 
-## UI 设计与组件规范 (UI & Styling Standards)
+## 开发命令
 
-- 模板默认预装核心组件库 `shadcn/ui`，位于`src/components/ui/`目录下
-- Next.js 项目**必须默认**采用 shadcn/ui 组件、风格和规范，**除非用户指定用其他的组件和规范。**
+```bash
+pnpm install    # 安装依赖
+pnpm dev       # 开发环境 (端口 5000)
+pnpm build     # 构建生产版本
+pnpm lint      # ESLint 检查
+pnpm ts-check  # TypeScript 检查
+```
+
+## API 接口
+
+### POST /api/chat
+AI 对话接口，使用流式输出。
+
+**请求体**:
+```json
+{
+  "message": "孩子拒绝上学怎么办？",
+  "childInfo": {
+    "name": "小明",
+    "currentStage": "小学低年级",
+    "keyBehaviors": []
+  },
+  "conversationHistory": []
+}
+```
+
+**响应**: SSE 流式数据
+
+## 数据存储
+
+- 使用 localStorage 存储所有数据
+- key: `positive-parenting-app`
+- 子 key: `_checkins`, `_emotions`, `_meetings`, `_chat`
+
+## 知识库
+
+- 位置: `src/lib/knowledge-base.ts`
+- 内容: 《正面管教》10章节核心内容
+- 包含话术模板、实用工具、错误目的分析等
+
+## 注意事项
+
+- AI API 仅在后端调用（API Route）
+- 所有组件使用 'use client' 指令
+- 避免 Hydration 问题：动态数据用 useEffect + useState
