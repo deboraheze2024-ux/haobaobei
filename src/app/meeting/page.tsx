@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { FamilyMeeting, BrainstormItem, Decision } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -45,15 +46,6 @@ interface AgendaItem {
   completed: boolean;
   votes?: Record<string, number>;
   decision?: string;
-}
-
-interface Meeting {
-  id: string;
-  date: string;
-  title: string;
-  participants: string[];
-  agenda: AgendaItem[];
-  summary?: string;
 }
 
 const defaultAgenda: AgendaItem[] = [
@@ -117,20 +109,18 @@ const stepConfig = {
 };
 
 export default function MeetingPage() {
-  const { activeChild, meetings, addMeeting, deleteMeeting } = useApp();
+  const { activeChild, familyMeetings: meetings, saveMeeting: addMeeting, deleteMeeting } = useApp();
   const [showNewMeeting, setShowNewMeeting] = useState(false);
-  const [newMeeting, setNewMeeting] = useState({
-    title: '',
-    participants: '',
+  const [newMeeting, setNewMeeting] = useState<{ attendees?: string[]; agenda: any[] }>({
+    attendees: [],
     agenda: defaultAgenda.map((a) => ({ ...a })),
-    summary: '',
   });
   const [currentStep, setCurrentStep] = useState(0);
   const [gratitudes, setGratitudes] = useState<Record<string, string>>({});
   const [topic, setTopic] = useState('');
-  const [brainstorm, setBrainstorm] = useState<string[]>([]);
+  const [brainstorm, setBrainstorm] = useState<BrainstormItem[]>([]);
   const [newIdea, setNewIdea] = useState('');
-  const [selectedDecision, setSelectedDecision] = useState('');
+  const [decisions, setDecisions] = useState<Decision[]>([]);
   const [activity, setActivity] = useState('');
   const [notes, setNotes] = useState('');
 
@@ -165,42 +155,43 @@ export default function MeetingPage() {
 
   const handleStartNewMeeting = () => {
     setNewMeeting({
-      title: `${format(new Date(), 'MM月dd日')}家庭会议`,
-      participants: `${activeChild.name}、爸爸、妈妈`,
+      attendees: [activeChild.name, '爸爸', '妈妈'],
       agenda: defaultAgenda.map((a) => ({ ...a })),
-      summary: '',
     });
     setCurrentStep(0);
     setGratitudes({});
     setTopic('');
     setBrainstorm([]);
     setNewIdea('');
-    setSelectedDecision('');
+    setDecisions([]);
     setActivity('');
     setNotes('');
     setShowNewMeeting(true);
   };
 
   const handleSaveMeeting = () => {
-    const meeting: Meeting = {
-      id: Date.now().toString(),
+    const meeting: FamilyMeeting = {
+      id: `meeting-${Date.now()}`,
       date: format(new Date(), 'yyyy-MM-dd'),
-      title: newMeeting.title,
-      participants: newMeeting.participants.split('、').filter(Boolean),
-      agenda: [
-        ...newMeeting.agenda.map((a, i) => {
-          if (a.type === 'gratitude') {
-            return { ...a, description: Object.entries(gratitudes).map(([k, v]) => `${k}: ${v}`).join('; ') };
-          }
-          if (a.type === 'topic') return { ...a, description: topic };
-          if (a.type === 'brainstorm') return { ...a, description: brainstorm.join('; ') };
-          if (a.type === 'decision') return { ...a, decision: selectedDecision };
-          if (a.type === 'activity') return { ...a, description: activity };
-          if (a.type === 'note') return { ...a, description: notes };
-          return a;
-        }),
-      ],
-      summary: notes || `本次会议讨论了"${topic}"，决定：${selectedDecision}，下周活动：${activity}`,
+      status: 'completed',
+      attendees: newMeeting.attendees || [activeChild.name, '爸爸', '妈妈'],
+      agenda: newMeeting.agenda?.map((a, i) => {
+        if (a.type === 'gratitude') {
+          return { ...a, status: 'decided' as const };
+        }
+        if (a.type === 'topic') return { ...a, status: 'decided' as const, result: topic };
+        if (a.type === 'brainstorm') return { ...a, status: 'decided' as const };
+        if (a.type === 'decision') return { ...a, status: 'decided' as const };
+        if (a.type === 'activity') return { ...a, status: 'decided' as const };
+        if (a.type === 'note') return { ...a, status: 'decided' as const };
+        return a;
+      }) || [],
+      gratitudeList: Object.entries(gratitudes).map(([k, v]) => `${k}: ${v}`),
+      brainstorms: brainstorm,
+      decisions: decisions,
+      funPlan: activity,
+      notes: notes || `本次会议讨论了"${topic}"`,
+      createdAt: new Date().toISOString(),
     };
 
     addMeeting(meeting);
@@ -250,7 +241,7 @@ export default function MeetingPage() {
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Users className="w-5 h-5 text-cyan-500" />
-                  {newMeeting.title || '新家庭会议'}
+                  {format(new Date(), 'MM月dd日')}家庭会议
                 </DialogTitle>
               </DialogHeader>
 
@@ -358,7 +349,7 @@ export default function MeetingPage() {
                         placeholder="写下你的想法..."
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' && newIdea.trim()) {
-                            setBrainstorm([...brainstorm, newIdea.trim()]);
+                            setBrainstorm([...brainstorm, { id: `brain-${Date.now()}`, suggestion: newIdea.trim(), proposer: activeChild.name, agendaId: '' }]);
                             setNewIdea('');
                           }
                         }}
@@ -366,7 +357,7 @@ export default function MeetingPage() {
                       <Button
                         onClick={() => {
                           if (newIdea.trim()) {
-                            setBrainstorm([...brainstorm, newIdea.trim()]);
+                            setBrainstorm([...brainstorm, { id: `brain-${Date.now()}`, suggestion: newIdea.trim(), proposer: activeChild.name, agendaId: '' }]);
                             setNewIdea('');
                           }
                         }}
@@ -376,9 +367,9 @@ export default function MeetingPage() {
                       </Button>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {brainstorm.map((idea, i) => (
+                      {brainstorm.map((item, i) => (
                         <Badge key={i} variant="outline" className="px-3 py-1.5 bg-white">
-                          {idea}
+                          {item.suggestion}
                         </Badge>
                       ))}
                       {brainstorm.length === 0 && (
@@ -392,24 +383,32 @@ export default function MeetingPage() {
                   <div className="space-y-4">
                     <p className="text-sm text-gray-600">{currentStepConfig.tip}</p>
                     <div className="space-y-2">
-                      {brainstorm.map((idea, i) => (
+                      {brainstorm.map((item, i) => (
                         <button
                           key={i}
-                          onClick={() => setSelectedDecision(idea)}
+                          onClick={() => {
+                            const text = item.suggestion;
+                            const existing = decisions.find(d => d.content === text);
+                            if (existing) {
+                              setDecisions(decisions.filter(d => d.id !== existing.id));
+                            } else {
+                              setDecisions([...decisions, { id: `decision-${Date.now()}-${i}`, agendaId: '', content: text, agreedBy: [activeChild.name] }]);
+                            }
+                          }}
                           className={cn(
                             'w-full p-4 rounded-xl text-left transition-all',
-                            selectedDecision === idea
+                            decisions.some(d => d.content === item.suggestion)
                               ? 'bg-gradient-to-r from-violet-100 to-purple-100 border-2 border-violet-300'
                               : 'bg-white border border-gray-200 hover:border-violet-200'
                           )}
                         >
                           <div className="flex items-center gap-3">
-                            {selectedDecision === idea ? (
+                            {decisions.some(d => d.content === item.suggestion) ? (
                               <CheckCircle2 className="w-5 h-5 text-violet-500" />
                             ) : (
                               <Circle className="w-5 h-5 text-gray-300" />
                             )}
-                            <span className="font-medium text-gray-700">{idea}</span>
+                            <span className="font-medium text-gray-700">{item.suggestion}</span>
                           </div>
                         </button>
                       ))}
@@ -503,7 +502,7 @@ export default function MeetingPage() {
                 <Star className="w-5 h-5 text-white" />
               </div>
               <div className="text-2xl font-bold text-gray-800">
-                {meetings.filter((m) => m.agenda.some((a) => a.decision)).length}
+                {meetings.filter((m) => m.decisions && m.decisions.length > 0).length}
               </div>
               <div className="text-xs text-gray-500">已解决问题</div>
             </CardContent>
@@ -515,7 +514,7 @@ export default function MeetingPage() {
                 <Heart className="w-5 h-5 text-white" />
               </div>
               <div className="text-2xl font-bold text-gray-800">
-                {meetings.filter((m) => m.agenda.some((a) => a.type === 'gratitude' && a.description?.length > 10)).length}
+                {meetings.filter((m) => m.gratitudeList && m.gratitudeList.length > 0).length}
               </div>
               <div className="text-xs text-gray-500">温馨时刻</div>
             </CardContent>
@@ -573,10 +572,10 @@ export default function MeetingPage() {
                 <CardContent className="p-5">
                   <div className="flex items-start justify-between mb-4">
                     <div>
-                      <h3 className="font-semibold text-gray-800">{meeting.title}</h3>
+                      <h3 className="font-semibold text-gray-800">{format(new Date(meeting.date), 'MM月dd日')} 家庭会议</h3>
                       <p className="text-sm text-gray-500">
                         {format(new Date(meeting.date), 'yyyy年MM月dd日')} ·{' '}
-                        {meeting.participants.join('、')}
+                        {meeting.attendees.join('、')}
                       </p>
                     </div>
                     <Button
@@ -590,33 +589,29 @@ export default function MeetingPage() {
                   </div>
 
                   <div className="flex flex-wrap gap-2 mb-4">
-                    {meeting.agenda.map((item, i) => {
-                      const config = stepConfig[item.type as keyof typeof stepConfig];
-                      const Icon = config.icon;
-                      return (
-                        <div
-                          key={item.id}
-                          className={cn(
-                            'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs',
-                            item.decision || (item.description && item.type === 'gratitude')
-                              ? 'bg-green-50 text-green-600'
-                              : 'bg-gray-50 text-gray-500'
-                          )}
-                        >
-                          {item.decision || (item.description && item.type === 'gratitude') ? (
-                            <CheckCircle2 className="w-3 h-3" />
-                          ) : (
-                            <Circle className="w-3 h-3" />
-                          )}
-                          <span>{config.label}</span>
-                        </div>
-                      );
-                    })}
+                    {meeting.decisions && meeting.decisions.length > 0 && (
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs bg-green-50 text-green-600">
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>已决策 ({meeting.decisions.length})</span>
+                      </div>
+                    )}
+                    {meeting.gratitudeList && meeting.gratitudeList.length > 0 && (
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs bg-pink-50 text-pink-600">
+                        <Heart className="w-3 h-3" />
+                        <span>致谢 ({meeting.gratitudeList.length})</span>
+                      </div>
+                    )}
+                    {meeting.funPlan && (
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs bg-amber-50 text-amber-600">
+                        <Star className="w-3 h-3" />
+                        <span>活动: {meeting.funPlan}</span>
+                      </div>
+                    )}
                   </div>
 
-                  {meeting.summary && (
+                  {meeting.notes && (
                     <div className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3">
-                      {meeting.summary}
+                      {meeting.notes}
                     </div>
                   )}
                 </CardContent>

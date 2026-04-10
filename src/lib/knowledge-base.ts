@@ -751,7 +751,7 @@ export const defaultPhraseCards: PhraseCard[] = [
   // 矫正错误
   {
     id: 'phrase-29',
-    category: '矫正错误',
+    category: '错误目的',
     title: '承认错误',
     content: '我犯了一个错误，我很抱歉。',
     situation: '家长犯错时示范',
@@ -761,7 +761,7 @@ export const defaultPhraseCards: PhraseCard[] = [
   },
   {
     id: 'phrase-30',
-    category: '矫正错误',
+    category: '错误目的',
     title: '和好',
     content: '我刚才对你太严厉了，我向你道歉。',
     situation: '过度反应后修复关系',

@@ -109,7 +109,7 @@ export default function ChatPage() {
                 name: activeChild.name,
                 currentStage: activeChild.currentStage,
                 personality: activeChild.personality,
-                keyBehaviors: recentEmotions.slice(0, 5).map((e) => e.note || e.emotion),
+                keyBehaviors: recentEmotions.slice(0, 5).map((e) => e.notes || e.emotion),
               }
             : null,
           conversationHistory: fullHistory,

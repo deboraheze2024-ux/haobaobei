@@ -45,6 +45,7 @@ interface AppState {
   // 家庭会议
   familyMeetings: FamilyMeeting[];
   saveMeeting: (meeting: FamilyMeeting) => void;
+  deleteMeeting: (meetingId: string) => void;
 
   // 聊天
   chatMessages: ChatMessage[];
@@ -228,6 +229,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const deleteMeeting = (meetingId: string) => {
+    setFamilyMeetings((prev) => prev.filter((m) => m.id !== meetingId));
+  };
+
   const addChatMessage = (message: ChatMessage) => {
     storage.saveChatMessage(message);
     setChatMessages((prev) => {
@@ -396,7 +401,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const nodeProgress = updatedSubTasks.length > 0
         ? Math.round((completedCount / updatedSubTasks.length) * 100)
         : node.progress;
-      const nodeStatus = nodeProgress === 100 ? 'completed' : nodeProgress > 0 ? 'in_progress' : 'pending';
+      const nodeStatus: 'completed' | 'pending' | 'in_progress' = nodeProgress === 100 ? 'completed' : nodeProgress > 0 ? 'in_progress' : 'pending';
 
       return {
         ...node,
@@ -636,6 +641,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     saveEmotion,
     familyMeetings,
     saveMeeting,
+    deleteMeeting,
     chatMessages,
     addChatMessage,
     clearChat,

@@ -93,11 +93,9 @@ const periodConfig = {
 };
 
 export default function CheckInPage() {
-  const { activeChild, checkIns, addCheckIn, growthGoals } = useApp();
+  const { activeChild, todayCheckIns, saveCheckIn, growthGoals } = useApp();
   const [activeTab, setActiveTab] = useState<string>('morning');
   const today = format(new Date(), 'yyyy-MM-dd');
-
-  const todayCheckIns = checkIns.filter((c) => c.date === today);
 
   // 获取目标关联的任务
   const getGoalTasksForPeriod = (period: 'morning' | 'afternoon' | 'evening') => {
@@ -158,7 +156,7 @@ export default function CheckInPage() {
       tasks: updatedTasks,
     };
 
-    addCheckIn(newCheckIn);
+    saveCheckIn(newCheckIn);
   };
 
   const getPeriodProgress = (period: string) => {
@@ -452,7 +450,7 @@ export default function CheckInPage() {
               </div>
               <div>
                 <div className="text-2xl font-bold text-gray-800">
-                  {checkIns.length}
+                  {todayCheckIns.length}
                 </div>
                 <div className="text-sm text-gray-500">累计打卡天数</div>
               </div>

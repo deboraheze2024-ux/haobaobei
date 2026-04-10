@@ -253,20 +253,21 @@ export default function PhrasesPage() {
 
   const allPhrases = [...defaultPhrases, ...phraseCards].map((p) => ({
     ...p,
-    isFavorite: phraseCards.find((ph: Phrase) => ph.id === p.id)?.isFavorite ?? p.isFavorite,
+    isFavorite: phraseCards.find((ph) => ph.id === p.id)?.isFavorite ?? p.isFavorite,
   }));
 
   const filteredPhrases = allPhrases.filter((p) => {
     const matchesCategory = activeCategory === 'all' || p.category === activeCategory;
+    const scenarioText = 'scenario' in p ? (p as any).scenario : '';
     const matchesSearch =
       searchQuery === '' ||
       p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.scenario.toLowerCase().includes(searchQuery.toLowerCase());
+      scenarioText.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
 
-  const handleCopy = (phrase: Phrase) => {
+  const handleCopy = (phrase: any) => {
     navigator.clipboard.writeText(phrase.content);
     setCopiedId(phrase.id);
     setTimeout(() => setCopiedId(null), 2000);
@@ -480,10 +481,10 @@ export default function PhrasesPage() {
                 <div className="flex items-center justify-between text-xs text-gray-400">
                   <span className="flex items-center gap-1">
                     <Sparkles className="w-3 h-3" />
-                    {phrase.scenario || '通用场景'}
+                    {('scenario' in phrase ? (phrase as any).scenario : '') || '通用场景'}
                   </span>
                   <span className="text-gray-300">|</span>
-                  <span>{phrase.chapter}</span>
+                  <span>{('chapter' in phrase ? (phrase as any).chapter : phrase.sourceChapter) || '正面管教'}</span>
                 </div>
 
                 <div className="flex gap-2 mt-4 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -515,7 +516,7 @@ export default function PhrasesPage() {
                         : ''
                     )}
                     onClick={() => {
-                      if (phraseCards.find((p: Phrase) => p.id === phrase.id)) {
+                      if (phraseCards.find((p) => p.id === phrase.id)) {
                         deletePhraseCard(phrase.id);
                       } else {
                         toggleFavorite(phrase.id);

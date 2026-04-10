@@ -50,12 +50,12 @@ import {
 import { ParentingNote, ReflectionRecord, LearningRecord, ImportantExperience, ExperienceCategory } from '@/lib/types';
 
 // 经验类别配置
-const experienceCategoryConfig: Record<ExperienceCategory, { label: string; icon: React.ComponentType<{ className?: string }>; color: string; bgColor: string }> = {
-  success: { label: '成功经验', icon: Trophy, color: 'text-amber-600', bgColor: 'bg-amber-50' },
-  challenge: { label: '挑战应对', icon: AlertTriangle, color: 'text-orange-600', bgColor: 'bg-orange-50' },
-  breakthrough: { label: '突破时刻', icon: Zap, color: 'text-violet-600', bgColor: 'bg-violet-50' },
-  lesson: { label: '深刻教训', icon: Lightbulb, color: 'text-blue-600', bgColor: 'bg-blue-50' },
-  tip: { label: '实用技巧', icon: ThumbsUp, color: 'text-emerald-600', bgColor: 'bg-emerald-50' },
+const experienceCategoryConfig: Record<ExperienceCategory, { label: string; icon: React.ComponentType<{ className?: string }>; color: string; bgColor: string; borderColor: string }> = {
+  success: { label: '成功经验', icon: Trophy, color: 'text-amber-600', bgColor: 'bg-amber-50', borderColor: 'border-amber-200' },
+  challenge: { label: '挑战应对', icon: AlertTriangle, color: 'text-orange-600', bgColor: 'bg-orange-50', borderColor: 'border-orange-200' },
+  breakthrough: { label: '突破时刻', icon: Zap, color: 'text-violet-600', bgColor: 'bg-violet-50', borderColor: 'border-violet-200' },
+  lesson: { label: '深刻教训', icon: Lightbulb, color: 'text-blue-600', bgColor: 'bg-blue-50', borderColor: 'border-blue-200' },
+  tip: { label: '实用技巧', icon: ThumbsUp, color: 'text-emerald-600', bgColor: 'bg-emerald-50', borderColor: 'border-emerald-200' },
 };
 
 // 学习来源配置
@@ -106,9 +106,26 @@ export default function ParentingPage() {
 
   // 学习记录相关状态
   const [learningDialog, setLearningDialog] = useState<LearningRecord | null>(null);
-  const [learningForm, setLearningForm] = useState({
-    title: '', source: 'book' as const, sourceName: '', date: format(new Date(), 'yyyy-MM-dd'),
-    summary: '', insights: '', application: '', actionPlan: '', tags: '',
+  const [learningForm, setLearningForm] = useState<{
+    title: string;
+    source: 'book' | 'course' | 'article' | 'experience' | 'other';
+    sourceName: string;
+    date: string;
+    summary: string;
+    insights: string;
+    application: string;
+    actionPlan: string;
+    tags: string;
+  }>({
+    title: '',
+    source: 'book',
+    sourceName: '',
+    date: format(new Date(), 'yyyy-MM-dd'),
+    summary: '',
+    insights: '',
+    application: '',
+    actionPlan: '',
+    tags: '',
   });
   const [learningImages, setLearningImages] = useState<string[]>([]);
   const [isLearningDialogOpen, setIsLearningDialogOpen] = useState(false);

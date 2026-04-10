@@ -108,6 +108,11 @@ export interface CheckInTask {
   description?: string;
   completed: boolean;
   completedAt?: string;
+  // 目标任务相关
+  isGoalTask?: boolean;
+  goalTitle?: string;
+  goalId?: string;
+  nodeId?: string;
 }
 
 // 日常任务模板

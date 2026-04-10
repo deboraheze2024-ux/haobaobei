@@ -43,16 +43,12 @@ import {
 import { EmotionType } from '@/lib/types';
 
 const emotionTypes: { type: EmotionType; emoji: string; label: string; color: string }[] = [
-  { type: 'happy', emoji: '😄', label: '开心', color: 'text-green-500 bg-green-50 border-green-200' },
-  { type: 'excited', emoji: '🎉', label: '兴奋', color: 'text-amber-500 bg-amber-50 border-amber-200' },
-  { type: 'calm', emoji: '😌', label: '平静', color: 'text-blue-500 bg-blue-50 border-blue-200' },
-  { type: 'worried', emoji: '😟', label: '担心', color: 'text-purple-500 bg-purple-50 border-purple-200' },
-  { type: 'sad', emoji: '😢', label: '难过', color: 'text-indigo-500 bg-indigo-50 border-indigo-200' },
-  { type: 'angry', emoji: '😠', label: '生气', color: 'text-red-500 bg-red-50 border-red-200' },
-  { type: 'frustrated', emoji: '😤', label: '沮丧', color: 'text-orange-500 bg-orange-50 border-orange-200' },
-  { type: 'scared', emoji: '😨', label: '害怕', color: 'text-gray-500 bg-gray-50 border-gray-200' },
-  { type: 'tired', emoji: '😴', label: '疲惫', color: 'text-teal-500 bg-teal-50 border-teal-200' },
-  { type: 'proud', emoji: '🥹', label: '自豪', color: 'text-pink-500 bg-pink-50 border-pink-200' },
+  { type: '开心', emoji: '😄', label: '开心', color: 'text-green-500 bg-green-50 border-green-200' },
+  { type: '平静', emoji: '😌', label: '平静', color: 'text-blue-500 bg-blue-50 border-blue-200' },
+  { type: '焦虑', emoji: '😟', label: '焦虑', color: 'text-purple-500 bg-purple-50 border-purple-200' },
+  { type: '沮丧', emoji: '😢', label: '沮丧', color: 'text-indigo-500 bg-indigo-50 border-indigo-200' },
+  { type: '愤怒', emoji: '😠', label: '愤怒', color: 'text-red-500 bg-red-50 border-red-200' },
+  { type: '恐惧', emoji: '😨', label: '恐惧', color: 'text-gray-500 bg-gray-50 border-gray-200' },
 ];
 
 const behaviorPatterns = [
@@ -63,7 +59,8 @@ const behaviorPatterns = [
 ];
 
 export default function ProfilePage() {
-  const { activeChild, emotions, addEmotionRecord, behaviorRecords } = useApp();
+  const { activeChild, recentEmotions: emotions, saveEmotion } = useApp();
+  const behaviorRecords: any[] = [];
   const [showAddEmotion, setShowAddEmotion] = useState(false);
   const [selectedEmotion, setSelectedEmotion] = useState<EmotionType | null>(null);
   const [emotionIntensity, setEmotionIntensity] = useState(5);
@@ -124,12 +121,15 @@ export default function ProfilePage() {
 
   const handleAddEmotion = () => {
     if (!selectedEmotion) return;
-    addEmotionRecord({
+    saveEmotion({
+      id: `emotion-${Date.now()}`,
       childId: activeChild.id,
       emotion: selectedEmotion,
-      intensity: emotionIntensity,
-      note: emotionNote,
-      triggers: [],
+      date: format(new Date(), 'yyyy-MM-dd'),
+      time: format(new Date(), 'HH:mm'),
+      intensity: emotionIntensity as 1 | 2 | 3 | 4 | 5,
+      notes: emotionNote,
+      trigger: '',
     });
     setSelectedEmotion(null);
     setEmotionIntensity(5);
@@ -378,8 +378,8 @@ export default function ProfilePage() {
                               {format(new Date(record.date), 'MM/dd HH:mm')}
                             </span>
                           </div>
-                          {record.note && (
-                            <p className="text-sm text-gray-600">{record.note}</p>
+                          {record.notes && (
+                            <p className="text-sm text-gray-600">{record.notes}</p>
                           )}
                         </div>
                       </div>
