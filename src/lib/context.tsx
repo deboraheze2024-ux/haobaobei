@@ -9,6 +9,8 @@ import {
   ChatMessage,
   TaskTemplate,
   PhraseCard,
+  GrowthGoal,
+  GoalNode,
 } from './types';
 import { storage } from './storage';
 import {
@@ -23,6 +25,8 @@ interface AppState {
   childProfiles: ChildProfile[];
   setActiveChild: (childId: string) => void;
   updateChildProfile: (child: ChildProfile) => void;
+  addChildProfile: (child: ChildProfile) => void;
+  deleteChildProfile: (childId: string) => void;
 
   // 打卡
   todayCheckIns: CheckInRecord[];
@@ -47,6 +51,18 @@ interface AppState {
   phraseCards: PhraseCard[];
   toggleFavorite: (cardId: string) => void;
 
+  // 目标管理
+  growthGoals: GrowthGoal[];
+  activeGoals: GrowthGoal[];
+  saveGoal: (goal: GrowthGoal) => void;
+  deleteGoal: (goalId: string) => void;
+  updateGoalNode: (goalId: string, nodeId: string, updates: Partial<GoalNode>) => void;
+  updateGoalSubTask: (goalId: string, nodeId: string, subTaskId: string, updates: Partial<{completed: boolean; notes?: string}>) => void;
+  addGoalSubTask: (goalId: string, nodeId: string, title: string) => void;
+  deleteGoalSubTask: (goalId: string, nodeId: string, subTaskId: string) => void;
+  linkNodeToCheckIn: (goalId: string, nodeId: string, period: 'morning' | 'afternoon' | 'evening', taskTitle: string) => void;
+  unlinkNodeFromCheckIn: (goalId: string, nodeId: string) => void;
+
   // 加载状态
   isLoading: boolean;
 }
@@ -64,6 +80,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [familyMeetings, setFamilyMeetings] = useState<FamilyMeeting[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [phraseCards, setPhraseCards] = useState<PhraseCard[]>(defaultPhraseCards);
+  const [growthGoals, setGrowthGoals] = useState<GrowthGoal[]>([]);
+  const [activeGoals, setActiveGoals] = useState<GrowthGoal[]>([]);
 
   // 初始化数据
   useEffect(() => {
@@ -83,6 +101,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setRecentEmotions(storage.getRecentEmotions());
         setFamilyMeetings(storage.getFamilyMeetings());
         setChatMessages(storage.getChatMessages());
+        
+        // 加载目标
+        const allGoals = storage.getGrowthGoals();
+        setGrowthGoals(allGoals);
+        setActiveGoals(allGoals.filter((g) => g.status === 'active'));
       } catch (error) {
         console.error('Failed to load data:', error);
       } finally {
@@ -97,6 +120,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     storage.setActiveChild(childId);
     const child = childProfiles.find((c) => c.id === childId) || null;
     setActiveChildState(child);
+    // 更新活跃目标
+    setActiveGoals(storage.getActiveGoals(childId));
   };
 
   const updateChildProfile = (child: ChildProfile) => {
@@ -106,6 +131,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     );
     if (activeChild?.id === child.id) {
       setActiveChildState(child);
+    }
+  };
+
+  const addChildProfile = (child: ChildProfile) => {
+    storage.addChildProfile(child);
+    setChildProfiles((prev) => [...prev, child]);
+  };
+
+  const deleteChildProfile = (childId: string) => {
+    const settings = storage.getSettings();
+    const updatedProfiles = settings.childProfiles.filter((c) => c.id !== childId);
+    settings.childProfiles = updatedProfiles;
+    if (settings.activeChildId === childId && updatedProfiles.length > 0) {
+      settings.activeChildId = updatedProfiles[0].id;
+      setActiveChildState(updatedProfiles[0]);
+    }
+    storage.saveSettings(settings);
+    setChildProfiles(updatedProfiles);
+    if (settings.activeChildId === childId) {
+      setActiveChildState(null);
     }
   };
 
@@ -167,11 +212,259 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
+  const saveGoal = (goal: GrowthGoal) => {
+    storage.saveGrowthGoal(goal);
+    setGrowthGoals((prev) => {
+      const index = prev.findIndex((g) => g.id === goal.id);
+      if (index !== -1) {
+        const updated = [...prev];
+        updated[index] = goal;
+        return updated;
+      }
+      return [...prev, goal];
+    });
+    if (goal.status === 'active') {
+      setActiveGoals((prev) => {
+        const index = prev.findIndex((g) => g.id === goal.id);
+        if (index !== -1) {
+          const updated = [...prev];
+          updated[index] = goal;
+          return updated;
+        }
+        return [...prev, goal];
+      });
+    }
+  };
+
+  const deleteGoal = (goalId: string) => {
+    storage.deleteGrowthGoal(goalId);
+    setGrowthGoals((prev) => prev.filter((g) => g.id !== goalId));
+    setActiveGoals((prev) => prev.filter((g) => g.id !== goalId));
+  };
+
+  const updateGoalNode = (goalId: string, nodeId: string, updates: Partial<GoalNode>) => {
+    const goal = growthGoals.find((g) => g.id === goalId);
+    if (!goal) return;
+
+    const updatedNodes = goal.nodes.map((node) =>
+      node.id === nodeId ? { ...node, ...updates } : node
+    );
+
+    // 计算新的进度
+    const completedCount = updatedNodes.filter((n) => n.status === 'completed').length;
+    const progress = updatedNodes.length > 0 
+      ? Math.round((completedCount / updatedNodes.length) * 100) 
+      : 0;
+
+    const updatedGoal: GrowthGoal = {
+      ...goal,
+      nodes: updatedNodes,
+      progress,
+      status: progress === 100 ? 'completed' : goal.status,
+      completedAt: progress === 100 ? new Date().toISOString() : undefined,
+      updatedAt: new Date().toISOString(),
+    };
+
+    saveGoal(updatedGoal);
+  };
+
+  const updateGoalSubTask = (goalId: string, nodeId: string, subTaskId: string, updates: Partial<{completed: boolean; notes?: string}>) => {
+    const goal = growthGoals.find((g) => g.id === goalId);
+    if (!goal) return;
+
+    const updatedNodes = goal.nodes.map((node) => {
+      if (node.id !== nodeId) return node;
+      const updatedSubTasks = node.subTasks?.map((st) =>
+        st.id === subTaskId ? { ...st, ...updates, completedAt: updates.completed ? new Date().toISOString() : undefined } : st
+      ) || [];
+
+      // 计算节点进度
+      const completedSubTasks = updatedSubTasks.filter((st) => st.completed).length;
+      const nodeProgress = updatedSubTasks.length > 0
+        ? Math.round((completedSubTasks / updatedSubTasks.length) * 100)
+        : node.progress;
+      const nodeStatus = nodeProgress === 100 ? 'completed' : nodeProgress > 0 ? 'in_progress' : node.status;
+
+      return {
+        ...node,
+        subTasks: updatedSubTasks,
+        progress: nodeProgress,
+        status: nodeStatus,
+        completedAt: nodeStatus === 'completed' ? new Date().toISOString() : undefined,
+      };
+    });
+
+    // 计算目标进度
+    const completedCount = updatedNodes.filter((n) => n.status === 'completed').length;
+    const progress = updatedNodes.length > 0
+      ? Math.round((completedCount / updatedNodes.length) * 100)
+      : 0;
+
+    const updatedGoal: GrowthGoal = {
+      ...goal,
+      nodes: updatedNodes,
+      progress,
+      status: progress === 100 ? 'completed' : goal.status,
+      completedAt: progress === 100 ? new Date().toISOString() : undefined,
+      updatedAt: new Date().toISOString(),
+    };
+
+    saveGoal(updatedGoal);
+  };
+
+  const addGoalSubTask = (goalId: string, nodeId: string, title: string) => {
+    const goal = growthGoals.find((g) => g.id === goalId);
+    if (!goal) return;
+
+    const updatedNodes = goal.nodes.map((node) => {
+      if (node.id !== nodeId) return node;
+      const newSubTask = {
+        id: `subtask-${Date.now()}`,
+        title,
+        completed: false,
+      };
+      return {
+        ...node,
+        subTasks: [...(node.subTasks || []), newSubTask],
+        status: 'in_progress' as const,
+      };
+    });
+
+    const updatedGoal: GrowthGoal = {
+      ...goal,
+      nodes: updatedNodes,
+      updatedAt: new Date().toISOString(),
+    };
+
+    saveGoal(updatedGoal);
+  };
+
+  const deleteGoalSubTask = (goalId: string, nodeId: string, subTaskId: string) => {
+    const goal = growthGoals.find((g) => g.id === goalId);
+    if (!goal) return;
+
+    const updatedNodes = goal.nodes.map((node) => {
+      if (node.id !== nodeId) return node;
+      const updatedSubTasks = node.subTasks?.filter((st) => st.id !== subTaskId) || [];
+
+      const completedCount = updatedSubTasks.filter((st) => st.completed).length;
+      const nodeProgress = updatedSubTasks.length > 0
+        ? Math.round((completedCount / updatedSubTasks.length) * 100)
+        : node.progress;
+      const nodeStatus = nodeProgress === 100 ? 'completed' : nodeProgress > 0 ? 'in_progress' : 'pending';
+
+      return {
+        ...node,
+        subTasks: updatedSubTasks,
+        progress: nodeProgress,
+        status: nodeStatus,
+        completedAt: nodeStatus === 'completed' ? new Date().toISOString() : undefined,
+      };
+    });
+
+    // 计算目标进度
+    const completedCount = updatedNodes.filter((n) => n.status === 'completed').length;
+    const progress = updatedNodes.length > 0
+      ? Math.round((completedCount / updatedNodes.length) * 100)
+      : 0;
+
+    const updatedGoal: GrowthGoal = {
+      ...goal,
+      nodes: updatedNodes,
+      progress,
+      status: progress === 100 ? 'completed' : goal.status,
+      completedAt: progress === 100 ? new Date().toISOString() : undefined,
+      updatedAt: new Date().toISOString(),
+    };
+
+    saveGoal(updatedGoal);
+  };
+
+  const linkNodeToCheckIn = (goalId: string, nodeId: string, period: 'morning' | 'afternoon' | 'evening', taskTitle: string) => {
+    const goal = growthGoals.find((g) => g.id === goalId);
+    if (!goal) return;
+
+    const updatedNodes = goal.nodes.map((node) => {
+      if (node.id !== nodeId) return node;
+      return {
+        ...node,
+        linkedCheckIn: true,
+        checkInPeriod: period,
+        checkInTaskId: `checkin-goal-${nodeId}`,
+        reminderEnabled: true,
+        reminderNote: taskTitle,
+        status: 'in_progress' as const,
+      };
+    });
+
+    // 同时添加到今日打卡
+    const today = new Date().toISOString().split('T')[0];
+    const checkInTask = {
+      id: `checkin-goal-${nodeId}`,
+      title: taskTitle,
+      description: `目标: ${goal.title}`,
+      completed: false,
+    };
+
+    const existingCheckIn = todayCheckIns.find((c) => c.period === period && c.date === today);
+    if (existingCheckIn) {
+      const hasTask = existingCheckIn.tasks.some((t) => t.id === checkInTask.id);
+      if (!hasTask) {
+        saveCheckIn({
+          ...existingCheckIn,
+          tasks: [...existingCheckIn.tasks, checkInTask],
+        });
+      }
+    } else {
+      saveCheckIn({
+        id: `${today}-${period}`,
+        date: today,
+        period,
+        tasks: [checkInTask],
+      });
+    }
+
+    const updatedGoal: GrowthGoal = {
+      ...goal,
+      nodes: updatedNodes,
+      updatedAt: new Date().toISOString(),
+    };
+
+    saveGoal(updatedGoal);
+  };
+
+  const unlinkNodeFromCheckIn = (goalId: string, nodeId: string) => {
+    const goal = growthGoals.find((g) => g.id === goalId);
+    if (!goal) return;
+
+    const updatedNodes = goal.nodes.map((node) => {
+      if (node.id !== nodeId) return node;
+      return {
+        ...node,
+        linkedCheckIn: false,
+        checkInPeriod: undefined,
+        checkInTaskId: undefined,
+        reminderEnabled: false,
+        reminderNote: undefined,
+      };
+    });
+
+    const updatedGoal: GrowthGoal = {
+      ...goal,
+      nodes: updatedNodes,
+      updatedAt: new Date().toISOString(),
+    };
+
+    saveGoal(updatedGoal);
+  };
+
   const value: AppState = {
     activeChild,
     childProfiles,
     setActiveChild,
     updateChildProfile,
+    addChildProfile,
+    deleteChildProfile,
     todayCheckIns,
     taskTemplates,
     saveCheckIn,
@@ -185,6 +478,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     clearChat,
     phraseCards,
     toggleFavorite,
+    growthGoals,
+    activeGoals,
+    saveGoal,
+    deleteGoal,
+    updateGoalNode,
+    updateGoalSubTask,
+    addGoalSubTask,
+    deleteGoalSubTask,
+    linkNodeToCheckIn,
+    unlinkNodeFromCheckIn,
     isLoading,
   };
 

@@ -5,6 +5,7 @@ import {
   EmotionRecord,
   FamilyMeeting,
   ChatMessage,
+  GrowthGoal,
   AppSettings,
 } from './types';
 import {
@@ -174,5 +175,46 @@ export const storage = {
   clearChat(): void {
     if (typeof window === 'undefined') return;
     localStorage.removeItem(`${STORAGE_KEY}_chat`);
+  },
+
+  // ========== 目标管理 ==========
+
+  // 获取成长目标
+  getGrowthGoals(childId?: string): GrowthGoal[] {
+    if (typeof window === 'undefined') return [];
+    const stored = localStorage.getItem(`${STORAGE_KEY}_goals`);
+    if (!stored) return [];
+    const goals = JSON.parse(stored);
+    if (childId) {
+      return goals.filter((g: GrowthGoal) => g.childId === childId);
+    }
+    return goals;
+  },
+
+  // 保存成长目标
+  saveGrowthGoal(goal: GrowthGoal): void {
+    if (typeof window === 'undefined') return;
+    const goals = this.getGrowthGoals();
+    const index = goals.findIndex((g) => g.id === goal.id);
+    if (index !== -1) {
+      goals[index] = goal;
+    } else {
+      goals.push(goal);
+    }
+    localStorage.setItem(`${STORAGE_KEY}_goals`, JSON.stringify(goals));
+  },
+
+  // 删除成长目标
+  deleteGrowthGoal(goalId: string): void {
+    if (typeof window === 'undefined') return;
+    const goals = this.getGrowthGoals().filter((g) => g.id !== goalId);
+    localStorage.setItem(`${STORAGE_KEY}_goals`, JSON.stringify(goals));
+  },
+
+  // 获取活跃目标
+  getActiveGoals(childId: string): GrowthGoal[] {
+    return this.getGrowthGoals(childId).filter(
+      (g) => g.status === 'active'
+    );
   },
 };

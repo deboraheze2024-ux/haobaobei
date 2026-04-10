@@ -5,10 +5,81 @@ export interface ChildProfile {
   birthDate: string;
   gender: 'male' | 'female' | 'other';
   avatar?: string;
+  nickname?: string; // 昵称
+  personality?: string; // 性格特点
+  strengths?: string[]; // 优点/长处
+  challenges?: string[]; // 挑战/需要改进的地方
+  interests?: string[]; // 兴趣爱好
   currentStage: '幼儿园' | '小学低年级' | '小学高年级' | '初中' | '高中';
   keyBehaviors: KeyBehavior[];
+  notes?: string; // 备注
   createdAt: string;
   updatedAt: string;
+}
+
+// 成长目标
+export interface GrowthGoal {
+  id: string;
+  childId: string;
+  title: string; // 目标标题
+  description: string; // 目标描述
+  category: GoalCategory;
+  status: 'active' | 'completed' | 'paused';
+  priority: 'high' | 'medium' | 'low';
+  progress: number; // 0-100
+  nodes: GoalNode[]; // 拆解的节点
+  startDate?: string; // 开始日期
+  targetEndDate?: string; // 目标完成日期
+  actualEndDate?: string; // 实际完成日期
+  totalDuration?: number; // 预计天数
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+}
+
+export type GoalCategory = 
+  | '情绪管理'
+  | '行为习惯'
+  | '社交能力'
+  | '学习习惯'
+  | '自信心'
+  | '责任感'
+  | '自律能力'
+  | '其他';
+
+export interface GoalNode {
+  id: string;
+  goalId: string;
+  title: string; // 节点标题
+  description: string; // 节点描述
+  status: 'pending' | 'in_progress' | 'completed';
+  progress: number; // 0-100
+  order: number; // 顺序
+  relatedPhrases?: string[]; // 相关话术
+  relatedKnowledge?: string; // 相关的正面管教知识点
+  completedAt?: string;
+  notes?: string; // 进展记录
+  // 时间计划
+  startDate?: string; // 开始日期
+  endDate?: string; // 截止日期
+  estimatedDays?: number; // 预计天数
+  // 可执行任务
+  subTasks?: GoalSubTask[]; // 子任务
+  // 打卡关联
+  linkedCheckIn?: boolean; // 是否关联打卡
+  checkInTaskId?: string; // 关联的打卡任务ID
+  checkInPeriod?: 'morning' | 'afternoon' | 'evening'; // 打卡时段
+  // 每日提醒
+  reminderEnabled?: boolean;
+  reminderNote?: string; // 提醒说明
+}
+
+export interface GoalSubTask {
+  id: string;
+  title: string; // 任务标题
+  completed: boolean;
+  completedAt?: string;
+  notes?: string; // 执行备注
 }
 
 export interface KeyBehavior {

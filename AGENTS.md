@@ -19,20 +19,25 @@
 ```
 src/
 ├── app/
-│   ├── api/chat/route.ts    # AI 对话 API
-│   ├── checkin/page.tsx     # 今日打卡
-│   ├── chat/page.tsx        # AI 问答助手
-│   ├── meeting/page.tsx      # 家庭会议
-│   ├── phrases/page.tsx      # 话术速查库
-│   ├── profile/page.tsx      # 成长档案
-│   ├── layout.tsx           # 根布局
-│   └── page.tsx             # 首页
-├── components/              # 组件
+│   ├── api/
+│   │   ├── chat/route.ts           # AI 对话 API
+│   │   └── goals/breakdown/route.ts # AI 目标拆解 API
+│   ├── checkin/page.tsx             # 今日打卡
+│   ├── chat/page.tsx                # AI 问答助手
+│   ├── goals/page.tsx               # 成长目标管理
+│   ├── meeting/page.tsx             # 家庭会议
+│   ├── phrases/page.tsx             # 话术速查库
+│   ├── profile/page.tsx             # 成长档案
+│   ├── settings/page.tsx           # 陪伴对象管理
+│   ├── layout.tsx                   # 根布局
+│   └── page.tsx                    # 首页
+├── components/                      # 组件
+│   └── main-nav.tsx                # 主导航
 ├── lib/
-│   ├── types.ts             # 类型定义
-│   ├── knowledge-base.ts     # 正面管教知识库
-│   ├── storage.ts           # localStorage 管理
-│   └── context.tsx          # React Context
+│   ├── types.ts                    # 类型定义
+│   ├── knowledge-base.ts           # 正面管教知识库 (50+条目)
+│   ├── storage.ts                  # localStorage 管理
+│   └── context.tsx                 # React Context
 ```
 
 ## 五大核心模块
@@ -54,13 +59,15 @@ src/
 - 引用来源章节
 
 ### 4. 话术速查库 (`/phrases`)
-- 20+ 实用话术卡片
-- 按场景分类（赢得合作/启发式提问/情绪调节等）
+- 30+ 实用话术卡片
+- 按场景分类（赢得合作/启发式提问/情绪调节/正向引导/日常互动）
 - 搜索和收藏功能
+- 支持自定义添加话术
 
 ### 5. 家庭会议 (`/meeting`)
 - 完整6步流程：致谢→议题→头脑风暴→决策→娱乐计划→记录
-- 历史会议归档
+- 交互式会议引导界面
+- 历史会议归档和回顾
 
 ## 开发命令
 
@@ -92,6 +99,24 @@ AI 对话接口，使用流式输出。
 
 **响应**: SSE 流式数据
 
+### POST /api/goals/breakdown
+AI 目标拆解接口，将成长目标分解为具体可执行的节点。
+
+**请求体**:
+```json
+{
+  "goalTitle": "培养孩子独立性",
+  "goalDescription": "希望孩子能自己整理房间",
+  "childInfo": {
+    "name": "小明",
+    "currentStage": "小学低年级",
+    "personality": "活泼好动"
+  }
+}
+```
+
+**响应**: 包含目标节点、建议话术、相关知识点的结构化数据
+
 ## 数据存储
 
 - 使用 localStorage 存储所有数据
@@ -103,6 +128,30 @@ AI 对话接口，使用流式输出。
 - 位置: `src/lib/knowledge-base.ts`
 - 内容: 《正面管教》10章节核心内容
 - 包含话术模板、实用工具、错误目的分析等
+
+## UI 设计规范
+
+### 视觉风格
+- **温馨柔和**：使用粉色、玫瑰色、紫色作为主色调
+- **渐变背景**：卡片和组件使用柔和的渐变效果
+- **圆角设计**：所有卡片使用 `rounded-2xl` 圆角
+- **阴影层次**：组件使用柔和的彩色阴影
+
+### 色彩系统
+| 用途 | 颜色 |
+|------|------|
+| 打卡 | amber/orange |
+| 目标 | violet/purple |
+| 档案 | pink/rose |
+| 问答 | blue/indigo |
+| 话术 | teal/emerald |
+| 会议 | cyan/blue |
+
+### 组件规范
+- Logo: 带有"正"字的渐变圆形图标
+- 导航: 白色背景 + 粉色边框 + 毛玻璃效果
+- 卡片: 白色/渐变背景 + 圆角 + 柔和阴影
+- 按钮: 渐变色 + 彩色阴影
 
 ## 注意事项
 
