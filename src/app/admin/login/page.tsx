@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAdminAuth } from '@/lib/admin-auth-context';
 import { Button } from '@/components/ui/button';
@@ -11,15 +11,30 @@ import { Loader2, Shield } from 'lucide-react';
 
 export default function AdminLoginPage() {
   const router = useRouter();
-  const { login, isAuthenticated } = useAdminAuth();
+  const { login, isAuthenticated, isLoading: authLoading } = useAdminAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
   // 如果已登录，重定向到管理后台
+  useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      router.push('/admin');
+    }
+  }, [isAuthenticated, authLoading, router]);
+
+  // 加载中
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+        <Loader2 className="w-8 h-8 animate-spin text-white" />
+      </div>
+    );
+  }
+
+  // 已登录则不显示登录表单
   if (isAuthenticated) {
-    router.push('/admin');
     return null;
   }
 

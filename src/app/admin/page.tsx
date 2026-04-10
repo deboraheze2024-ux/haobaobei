@@ -50,9 +50,15 @@ export default function AdminDashboardPage() {
     );
   }
 
-  // 未登录
+  // 未登录 - 使用 useEffect 重定向
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.push('/admin/login');
+    }
+  }, [isAuthenticated, isLoading, router]);
+
+  // 如果未登录，不渲染内容
   if (!isAuthenticated) {
-    router.push('/admin/login');
     return null;
   }
 
