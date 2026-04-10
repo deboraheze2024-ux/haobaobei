@@ -1,4 +1,3 @@
-import { sql } from "drizzle-orm";
 import { pgTable, text, varchar, timestamp, boolean, integer, jsonb, index } from "drizzle-orm/pg-core";
 
 // ============================================
@@ -8,6 +7,7 @@ export const childProfiles = pgTable(
   "child_profiles",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    user_id: varchar("user_id", { length: 36 }).notNull(),
     name: varchar("name", { length: 100 }).notNull(),
     birth_date: varchar("birth_date", { length: 20 }),
     gender: varchar("gender", { length: 20 }),
@@ -24,6 +24,7 @@ export const childProfiles = pgTable(
     updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
+    index("child_profiles_user_id_idx").on(table.user_id),
     index("child_profiles_name_idx").on(table.name),
     index("child_profiles_current_stage_idx").on(table.current_stage),
   ]
@@ -36,6 +37,7 @@ export const checkInRecords = pgTable(
   "check_in_records",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    user_id: varchar("user_id", { length: 36 }).notNull(),
     date: varchar("date", { length: 20 }).notNull(),
     period: varchar("period", { length: 20 }).notNull(),
     tasks: jsonb("tasks").notNull(),
@@ -44,6 +46,7 @@ export const checkInRecords = pgTable(
     created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
+    index("check_in_records_user_id_idx").on(table.user_id),
     index("check_in_records_date_idx").on(table.date),
     index("check_in_records_period_idx").on(table.period),
   ]
@@ -56,7 +59,8 @@ export const emotionRecords = pgTable(
   "emotion_records",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    child_id: varchar("child_id", { length: 36 }).notNull().references(() => childProfiles.id, { onDelete: "cascade" }),
+    user_id: varchar("user_id", { length: 36 }).notNull(),
+    child_id: varchar("child_id", { length: 36 }).notNull(),
     date: varchar("date", { length: 20 }).notNull(),
     time: varchar("time", { length: 10 }),
     emotion: varchar("emotion", { length: 20 }).notNull(),
@@ -69,6 +73,7 @@ export const emotionRecords = pgTable(
     created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
+    index("emotion_records_user_id_idx").on(table.user_id),
     index("emotion_records_child_id_idx").on(table.child_id),
     index("emotion_records_date_idx").on(table.date),
     index("emotion_records_emotion_idx").on(table.emotion),
@@ -82,6 +87,7 @@ export const familyMeetings = pgTable(
   "family_meetings",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    user_id: varchar("user_id", { length: 36 }).notNull(),
     date: varchar("date", { length: 20 }).notNull(),
     status: varchar("status", { length: 20 }).notNull(),
     attendees: jsonb("attendees"),
@@ -94,6 +100,7 @@ export const familyMeetings = pgTable(
     created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
+    index("family_meetings_user_id_idx").on(table.user_id),
     index("family_meetings_date_idx").on(table.date),
     index("family_meetings_status_idx").on(table.status),
   ]
@@ -106,7 +113,8 @@ export const growthGoals = pgTable(
   "growth_goals",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    child_id: varchar("child_id", { length: 36 }).notNull().references(() => childProfiles.id, { onDelete: "cascade" }),
+    user_id: varchar("user_id", { length: 36 }).notNull(),
+    child_id: varchar("child_id", { length: 36 }).notNull(),
     title: varchar("title", { length: 200 }).notNull(),
     description: text("description"),
     category: varchar("category", { length: 50 }),
@@ -123,6 +131,7 @@ export const growthGoals = pgTable(
     completed_at: timestamp("completed_at", { withTimezone: true }),
   },
   (table) => [
+    index("growth_goals_user_id_idx").on(table.user_id),
     index("growth_goals_child_id_idx").on(table.child_id),
     index("growth_goals_status_idx").on(table.status),
     index("growth_goals_category_idx").on(table.category),
@@ -136,12 +145,14 @@ export const chatMessages = pgTable(
   "chat_messages",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    user_id: varchar("user_id", { length: 36 }).notNull(),
     role: varchar("role", { length: 20 }).notNull(),
     content: text("content").notNull(),
     references: jsonb("references"),
     created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
+    index("chat_messages_user_id_idx").on(table.user_id),
     index("chat_messages_role_idx").on(table.role),
     index("chat_messages_created_at_idx").on(table.created_at),
   ]
@@ -154,6 +165,7 @@ export const phraseCards = pgTable(
   "phrase_cards",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    user_id: varchar("user_id", { length: 36 }).notNull(),
     category: varchar("category", { length: 50 }).notNull(),
     title: varchar("title", { length: 200 }).notNull(),
     content: text("content").notNull(),
@@ -164,6 +176,7 @@ export const phraseCards = pgTable(
     created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
+    index("phrase_cards_user_id_idx").on(table.user_id),
     index("phrase_cards_category_idx").on(table.category),
     index("phrase_cards_is_favorite_idx").on(table.is_favorite),
   ]
@@ -176,6 +189,7 @@ export const taskTemplates = pgTable(
   "task_templates",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    user_id: varchar("user_id", { length: 36 }).notNull(),
     period: varchar("period", { length: 20 }).notNull(),
     title: varchar("title", { length: 200 }).notNull(),
     description: text("description"),
@@ -183,6 +197,7 @@ export const taskTemplates = pgTable(
     created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
+    index("task_templates_user_id_idx").on(table.user_id),
     index("task_templates_period_idx").on(table.period),
   ]
 );
@@ -194,7 +209,8 @@ export const parentingNotes = pgTable(
   "parenting_notes",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    child_id: varchar("child_id", { length: 36 }).references(() => childProfiles.id, { onDelete: "cascade" }),
+    user_id: varchar("user_id", { length: 36 }).notNull(),
+    child_id: varchar("child_id", { length: 36 }),
     title: varchar("title", { length: 200 }).notNull(),
     content: text("content").notNull(),
     tags: jsonb("tags"),
@@ -203,6 +219,7 @@ export const parentingNotes = pgTable(
     updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
+    index("parenting_notes_user_id_idx").on(table.user_id),
     index("parenting_notes_child_id_idx").on(table.child_id),
     index("parenting_notes_is_pinned_idx").on(table.is_pinned),
     index("parenting_notes_created_at_idx").on(table.created_at),
@@ -216,7 +233,8 @@ export const reflectionRecords = pgTable(
   "reflection_records",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    child_id: varchar("child_id", { length: 36 }).references(() => childProfiles.id, { onDelete: "cascade" }),
+    user_id: varchar("user_id", { length: 36 }).notNull(),
+    child_id: varchar("child_id", { length: 36 }),
     title: varchar("title", { length: 200 }).notNull(),
     date: varchar("date", { length: 20 }).notNull(),
     situation: text("situation").notNull(),
@@ -232,6 +250,7 @@ export const reflectionRecords = pgTable(
     updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
+    index("reflection_records_user_id_idx").on(table.user_id),
     index("reflection_records_child_id_idx").on(table.child_id),
     index("reflection_records_date_idx").on(table.date),
     index("reflection_records_created_at_idx").on(table.created_at),
@@ -245,7 +264,8 @@ export const learningRecords = pgTable(
   "learning_records",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    child_id: varchar("child_id", { length: 36 }).references(() => childProfiles.id, { onDelete: "cascade" }),
+    user_id: varchar("user_id", { length: 36 }).notNull(),
+    child_id: varchar("child_id", { length: 36 }),
     title: varchar("title", { length: 200 }).notNull(),
     source: varchar("source", { length: 20 }).notNull(),
     source_name: varchar("source_name", { length: 200 }),
@@ -260,6 +280,7 @@ export const learningRecords = pgTable(
     updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
+    index("learning_records_user_id_idx").on(table.user_id),
     index("learning_records_child_id_idx").on(table.child_id),
     index("learning_records_source_idx").on(table.source),
     index("learning_records_date_idx").on(table.date),
@@ -273,7 +294,8 @@ export const importantExperiences = pgTable(
   "important_experiences",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
-    child_id: varchar("child_id", { length: 36 }).references(() => childProfiles.id, { onDelete: "cascade" }),
+    user_id: varchar("user_id", { length: 36 }).notNull(),
+    child_id: varchar("child_id", { length: 36 }),
     title: varchar("title", { length: 200 }).notNull(),
     content: text("content").notNull(),
     category: varchar("category", { length: 20 }).notNull(),
@@ -287,6 +309,7 @@ export const importantExperiences = pgTable(
     updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
+    index("important_experiences_user_id_idx").on(table.user_id),
     index("important_experiences_child_id_idx").on(table.child_id),
     index("important_experiences_category_idx").on(table.category),
     index("important_experiences_is_starred_idx").on(table.is_starred),
@@ -294,18 +317,20 @@ export const importantExperiences = pgTable(
 );
 
 // ============================================
-// 应用设置表（存储当前活跃的孩子ID等）
+// 应用设置表（存储用户设置）
 // ============================================
 export const appSettings = pgTable(
   "app_settings",
   {
     id: varchar("id", { length: 36 }).primaryKey(),
+    user_id: varchar("user_id", { length: 36 }).notNull().unique(),
     active_child_id: varchar("active_child_id", { length: 36 }),
     knowledge_base: jsonb("knowledge_base"),
     created_at: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updated_at: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
+    index("app_settings_user_id_idx").on(table.user_id),
     index("app_settings_active_child_id_idx").on(table.active_child_id),
   ]
 );

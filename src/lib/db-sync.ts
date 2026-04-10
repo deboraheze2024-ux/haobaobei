@@ -1,6 +1,7 @@
 /**
  * 数据同步模块
  * 将 localStorage 数据同步到 Supabase 数据库
+ * 支持用户数据隔离
  */
 import * as dbOps from '@/storage/database/db-operations';
 import {
@@ -14,11 +15,9 @@ import {
   ReflectionRecord,
   LearningRecord,
   ImportantExperience,
-  TaskTemplate,
-  PhraseCard,
 } from '@/lib/types';
 import { storage } from '@/lib/storage';
-import { defaultTaskTemplates, defaultPhraseCards, defaultChildProfile } from '@/lib/knowledge-base';
+import { defaultPhraseCards, defaultChildProfile } from '@/lib/knowledge-base';
 
 // 检查数据库是否可用
 let isDatabaseAvailable = false;
@@ -283,7 +282,7 @@ export async function loadAllData() {
         learningRecords: dbLearningRecords.map(dbToLearningRecord),
         importantExperiences: dbImportantExperiences.map(dbToImportantExperience),
         phraseCards: dbPhraseCards.length > 0 
-          ? dbPhraseCards.map((c: any) => ({
+          ? dbPhraseCards.map((c: { id: string; category: string; title: string; content: string; situation?: string; source_chapter?: string; is_favorite: boolean; tags?: string[] }) => ({
               id: c.id,
               category: c.category,
               title: c.title,

@@ -1,12 +1,7 @@
 /**
  * 数据库查询 API
  * 用于客户端访问 Supabase 数据库
- * 
- * 支持的操作：
- * - query: 查询数据
- * - insert: 插入数据
- * - update: 更新数据
- * - delete: 删除数据
+ * 支持用户数据隔离
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -15,12 +10,29 @@ import { getSupabaseClient } from '@/storage/database/supabase-client';
 interface DbQueryRequest {
   table: string;
   operation: 'select' | 'insert' | 'update' | 'delete';
-  filters?: Record<string, any>;
-  data?: Record<string, any>;
+  filters?: Record<string, unknown>;
+  data?: Record<string, unknown>;
   order?: { column: string; ascending?: boolean };
   limit?: number;
   single?: boolean;
 }
+
+// 需要 user_id 的表列表
+const TABLES_WITH_USER_ID = [
+  'child_profiles',
+  'check_in_records',
+  'emotion_records',
+  'family_meetings',
+  'growth_goals',
+  'chat_messages',
+  'phrase_cards',
+  'task_templates',
+  'parenting_notes',
+  'reflection_records',
+  'learning_records',
+  'important_experiences',
+  'app_settings',
+];
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,11 +40,33 @@ export async function POST(request: NextRequest) {
     const { table, operation, filters, data, order, limit, single } = body;
     const client = getSupabaseClient();
 
+    // 获取用户 ID
+    const token = request.headers.get('Authorization')?.replace('Bearer ', '');
+    let userId: string | null = null;
+
+    if (token) {
+      // 验证 token 并获取 user_id
+      const { data: session } = await client
+        .from('sessions')
+        .select('user_id')
+        .eq('token', token)
+        .maybeSingle();
+
+      if (session) {
+        userId = session.user_id;
+      }
+    }
+
     let result;
 
     switch (operation) {
       case 'select': {
         let query = client.from(table).select('*');
+        
+        // 如果表需要 user_id 且有用户登录，添加 user_id 过滤
+        if (TABLES_WITH_USER_ID.includes(table) && userId) {
+          query = query.eq('user_id', userId);
+        }
         
         if (filters) {
           for (const [key, value] of Object.entries(filters)) {
@@ -57,12 +91,22 @@ export async function POST(request: NextRequest) {
       }
 
       case 'insert': {
-        result = await client.from(table).insert(data).select();
+        // 如果表需要 user_id 且有用户登录，添加 user_id
+        const insertData = { ...data };
+        if (TABLES_WITH_USER_ID.includes(table) && userId) {
+          insertData.user_id = userId;
+        }
+        result = await client.from(table).insert(insertData).select();
         break;
       }
 
       case 'update': {
         let query = client.from(table).update(data);
+        
+        // 如果表需要 user_id 且有用户登录，添加 user_id 过滤
+        if (TABLES_WITH_USER_ID.includes(table) && userId) {
+          query = query.eq('user_id', userId);
+        }
         
         if (filters) {
           for (const [key, value] of Object.entries(filters)) {
@@ -76,6 +120,11 @@ export async function POST(request: NextRequest) {
 
       case 'delete': {
         let query = client.from(table).delete();
+        
+        // 如果表需要 user_id 且有用户登录，添加 user_id 过滤
+        if (TABLES_WITH_USER_ID.includes(table) && userId) {
+          query = query.eq('user_id', userId);
+        }
         
         if (filters) {
           for (const [key, value] of Object.entries(filters)) {

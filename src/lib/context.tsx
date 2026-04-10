@@ -129,7 +129,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setChildProfiles(data.childProfiles);
         setActiveChildState(data.childProfiles.find((c) => c.id === data.childProfiles[0]?.id) || null);
         setTaskTemplates(data.phraseCards.length > 0 ? defaultTaskTemplates : defaultTaskTemplates);
-        setPhraseCards(data.phraseCards);
+        setPhraseCards(data.phraseCards.length > 0 ? data.phraseCards as PhraseCard[] : defaultPhraseCards);
         setTodayCheckIns(data.todayCheckIns);
         setEmotionRecords(data.emotionRecords);
         setRecentEmotions(data.recentEmotions);

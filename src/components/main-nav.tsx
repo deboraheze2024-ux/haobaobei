@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   CalendarCheck,
   Menu,
@@ -12,10 +12,22 @@ import {
   Settings,
   Heart,
   BookHeart,
+  LogIn,
+  LogOut,
+  User,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useApp } from '@/lib/context';
+import { useAuth } from '@/lib/auth-context';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
 
 const navItems = [
   { href: '/', label: '首页', icon: Home },
@@ -26,8 +38,15 @@ const navItems = [
 
 export default function MainNav() {
   const pathname = usePathname();
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const { activeChild } = useApp();
+  const { user, isAuthenticated, isLoading, logout } = useAuth();
+
+  const handleLogout = async () => {
+    await logout();
+    router.push('/');
+  };
 
   return (
     <nav className="sticky top-0 z-50 bg-white/90 backdrop-blur-xl border-b border-rose-100 shadow-sm">
@@ -72,6 +91,52 @@ export default function MainNav() {
 
           {/* Right Side */}
           <div className="flex items-center gap-3">
+            {/* User Menu */}
+            {isLoading ? (
+              <div className="w-8 h-8 rounded-full bg-gray-100 animate-pulse" />
+            ) : isAuthenticated && user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="flex items-center gap-2 px-2 py-1 rounded-xl hover:bg-gray-50 transition-colors">
+                    <Avatar className="w-8 h-8 border-2 border-pink-200">
+                      <AvatarFallback className="bg-gradient-to-br from-pink-400 to-rose-500 text-white text-sm font-bold">
+                        {user.name?.charAt(0) || user.email.charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="hidden sm:block text-sm font-medium text-gray-700">
+                      {user.name || user.email.split('@')[0]}
+                    </span>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem className="cursor-pointer" asChild>
+                    <Link href="/settings" className="flex items-center">
+                      <User className="w-4 h-4 mr-2" />
+                      我的设置
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    className="cursor-pointer text-red-600 focus:text-red-600"
+                    onClick={handleLogout}
+                  >
+                    <LogOut className="w-4 h-4 mr-2" />
+                    退出登录
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Link href="/auth">
+                <Button 
+                  size="sm" 
+                  className="bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 shadow-md"
+                >
+                  <LogIn className="w-4 h-4 mr-1" />
+                  登录
+                </Button>
+              </Link>
+            )}
+
             {/* Settings */}
             <Link
               href="/settings"

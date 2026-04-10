@@ -154,11 +154,42 @@ AI 目标拆解接口，将成长目标分解为具体可执行的节点。
 ## 数据存储
 
 - **主存储**: Supabase PostgreSQL 数据库
-  - 13 张数据表（孩子档案、打卡记录、情绪记录、家庭会议、成长目标、聊天记录、话术卡片、任务模板、陪伴笔记、复盘记录、学习记录、重要经验、应用设置）
-  - 所有表启用了 RLS 策略，设置为完全公开访问
+  - 14 张数据表（用户表、会话表、孩子档案、打卡记录、情绪记录、家庭会议、成长目标、聊天记录、话术卡片、任务模板、陪伴笔记、复盘记录、学习记录、重要经验、应用设置）
+  - 所有表启用了 RLS 策略，支持用户数据隔离
+  - **用户系统**：支持注册、登录、会话管理
 - **降级存储**: localStorage（当数据库不可用时使用）
 - **数据同步**: `db-sync.ts` 模块负责数据库和 localStorage 之间的数据同步
 - **环境变量**: Supabase 配置存储在 `.env` 文件中
+
+## 用户系统
+
+### API 接口
+
+#### POST /api/auth
+用户认证接口，支持注册、登录、登出等操作。
+
+**请求体**:
+```json
+{
+  "action": "register | login | logout | verify | update-profile | get-profile",
+  "email": "user@example.com",
+  "password": "password123",
+  "name": "用户名（可选）"
+}
+```
+
+**响应**:
+```json
+{
+  "success": true,
+  "user": {
+    "id": "user-uuid",
+    "email": "user@example.com",
+    "name": "用户名"
+  },
+  "token": "session-token"
+}
+```
 
 ## 知识库
 
