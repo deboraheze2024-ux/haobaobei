@@ -12,6 +12,35 @@ import { createHash, randomBytes } from 'crypto';
 // 工具函数
 // ============================================
 
+// 带重试的数据库操作
+async function withRetry<T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3,
+  delay: number = 1000
+): Promise<T> {
+  let lastError: Error | null = null;
+  
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await operation();
+    } catch (error: any) {
+      lastError = error;
+      // 如果是网络错误，等待后重试
+      if (error?.message?.includes('fetch') || 
+          error?.message?.includes('network') ||
+          error?.message?.includes('timeout') ||
+          error?.cause?.code === 'ETIMEDOUT' ||
+          error?.code === 'ETIMEDOUT') {
+        await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
+        continue;
+      }
+      throw error;
+    }
+  }
+  
+  throw lastError;
+}
+
 function generateId(): string {
   return typeof globalThis.crypto?.randomUUID === 'function'
     ? globalThis.crypto.randomUUID()
@@ -84,12 +113,10 @@ async function handleRegister(data: {
 
   const client = getSupabaseClient();
 
-  // 检查邮箱是否已存在
-  const { data: existing } = await client
-    .from('users')
-    .select('id')
-    .eq('email', email)
-    .maybeSingle();
+  // 检查邮箱是否已存在（带重试）
+  const { data: existing } = await withRetry(() =>
+    client.from('users').select('id').eq('email', email).maybeSingle()
+  );
 
   if (existing) {
     return NextResponse.json(
@@ -103,14 +130,16 @@ async function handleRegister(data: {
   const hashedPassword = hashPassword(password);
   const now = new Date().toISOString();
 
-  const { error: insertError } = await client.from('users').insert({
-    id: userId,
-    email,
-    password: hashedPassword,
-    name: name || email.split('@')[0],
-    created_at: now,
-    updated_at: now,
-  });
+  const { error: insertError } = await withRetry(() =>
+    client.from('users').insert({
+      id: userId,
+      email,
+      password: hashedPassword,
+      name: name || email.split('@')[0],
+      created_at: now,
+      updated_at: now,
+    })
+  );
 
   if (insertError) {
     return NextResponse.json(
@@ -120,22 +149,24 @@ async function handleRegister(data: {
   }
 
   // 创建默认话术卡片
-  await createDefaultPhraseCards(client, userId);
+  await withRetry(() => createDefaultPhraseCards(client, userId));
 
   // 创建默认任务模板
-  await createDefaultTaskTemplates(client, userId);
+  await withRetry(() => createDefaultTaskTemplates(client, userId));
 
   // 创建会话
   const token = generateToken();
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 30); // 30天后过期
 
-  await client.from('sessions').insert({
-    id: generateId(),
-    user_id: userId,
-    token,
-    expires_at: expiresAt.toISOString(),
-  });
+  await withRetry(() =>
+    client.from('sessions').insert({
+      id: generateId(),
+      user_id: userId,
+      token,
+      expires_at: expiresAt.toISOString(),
+    })
+  );
 
   return NextResponse.json({
     success: true,
@@ -163,12 +194,10 @@ async function handleLogin(data: { email: string; password: string }) {
 
   const client = getSupabaseClient();
 
-  // 查找用户
-  const { data: user, error } = await client
-    .from('users')
-    .select('*')
-    .eq('email', email)
-    .maybeSingle();
+  // 查找用户（带重试）
+  const { data: user, error } = await withRetry(() =>
+    client.from('users').select('*').eq('email', email).maybeSingle()
+  );
 
   if (error || !user) {
     return NextResponse.json(
@@ -187,17 +216,20 @@ async function handleLogin(data: { email: string; password: string }) {
   }
 
   // 更新最后登录时间
-  await client.from('users').update({
-    last_login_at: new Date().toISOString(),
-  }).eq('id', user.id);
+  await withRetry(() =>
+    client.from('users').update({
+      last_login_at: new Date().toISOString(),
+    }).eq('id', user.id)
+  );
 
   // 创建新会话
   const token = generateToken();
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + 30);
 
-  await client.from('sessions').insert({
-    id: generateId(),
+  await withRetry(() =>
+    client.from('sessions').insert({
+      id: generateId(),
     user_id: user.id,
     token,
     expires_at: expiresAt.toISOString(),
