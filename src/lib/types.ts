@@ -313,6 +313,8 @@ export interface ImportantExperience {
   // 相关
   relatedNotes?: string[]; // 关联的陪伴笔记ID
   relatedReflections?: string[]; // 关联的复盘记录ID
+  // 图片
+  images: string[]; // 图片 keys
   // 标签
   tags: string[];
   createdAt: string;

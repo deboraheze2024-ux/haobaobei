@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { ImageUploader } from '@/components/ui/image-uploader';
 import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
 import {
@@ -98,16 +99,18 @@ export default function ParentingPage() {
   const [reflectionForm, setReflectionForm] = useState({
     title: '', date: format(new Date(), 'yyyy-MM-dd'),
     situation: '', thoughts: '', feelings: '', actions: '', result: '',
-    analysis: '', learnings: '', images: '', tags: '',
+    analysis: '', learnings: '', tags: '',
   });
+  const [reflectionImages, setReflectionImages] = useState<string[]>([]);
   const [isReflectionDialogOpen, setIsReflectionDialogOpen] = useState(false);
 
   // 学习记录相关状态
   const [learningDialog, setLearningDialog] = useState<LearningRecord | null>(null);
   const [learningForm, setLearningForm] = useState({
     title: '', source: 'book' as const, sourceName: '', date: format(new Date(), 'yyyy-MM-dd'),
-    summary: '', insights: '', application: '', actionPlan: '', images: '', tags: '',
+    summary: '', insights: '', application: '', actionPlan: '', tags: '',
   });
+  const [learningImages, setLearningImages] = useState<string[]>([]);
   const [isLearningDialogOpen, setIsLearningDialogOpen] = useState(false);
 
   // 重要经验相关状态
@@ -116,6 +119,7 @@ export default function ParentingPage() {
     title: '', content: '', category: 'tip' as ExperienceCategory,
     highlight: '', tags: '',
   });
+  const [experienceImages, setExperienceImages] = useState<string[]>([]);
   const [isExperienceDialogOpen, setIsExperienceDialogOpen] = useState(false);
 
   // 过滤数据
@@ -188,14 +192,15 @@ export default function ParentingPage() {
       result: reflectionForm.result,
       analysis: reflectionForm.analysis,
       learnings: reflectionForm.learnings,
-      images: reflectionForm.images.split(',').map((u) => u.trim()).filter(Boolean),
+      images: reflectionImages,
       tags: reflectionForm.tags.split(',').map((t) => t.trim()).filter(Boolean),
       createdAt: reflectionDialog?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
     saveReflectionRecord(record);
     setReflectionDialog(null);
-    setReflectionForm({ title: '', date: format(new Date(), 'yyyy-MM-dd'), situation: '', thoughts: '', feelings: '', actions: '', result: '', analysis: '', learnings: '', images: '', tags: '' });
+    setReflectionForm({ title: '', date: format(new Date(), 'yyyy-MM-dd'), situation: '', thoughts: '', feelings: '', actions: '', result: '', analysis: '', learnings: '', tags: '' });
+    setReflectionImages([]);
   };
 
   // 保存学习记录
@@ -211,14 +216,15 @@ export default function ParentingPage() {
       insights: learningForm.insights,
       application: learningForm.application,
       actionPlan: learningForm.actionPlan,
-      images: learningForm.images.split(',').map((u) => u.trim()).filter(Boolean),
+      images: learningImages,
       tags: learningForm.tags.split(',').map((t) => t.trim()).filter(Boolean),
       createdAt: learningDialog?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
     saveLearningRecord(record);
     setLearningDialog(null);
-    setLearningForm({ title: '', source: 'book', sourceName: '', date: format(new Date(), 'yyyy-MM-dd'), summary: '', insights: '', application: '', actionPlan: '', images: '', tags: '' });
+    setLearningForm({ title: '', source: 'book', sourceName: '', date: format(new Date(), 'yyyy-MM-dd'), summary: '', insights: '', application: '', actionPlan: '', tags: '' });
+    setLearningImages([]);
   };
 
   // 保存重要经验
@@ -231,6 +237,7 @@ export default function ParentingPage() {
       category: experienceForm.category,
       isStarred: experienceDialog?.isStarred || false,
       highlight: experienceForm.highlight,
+      images: experienceImages,
       tags: experienceForm.tags.split(',').map((t) => t.trim()).filter(Boolean),
       createdAt: experienceDialog?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -238,6 +245,7 @@ export default function ParentingPage() {
     saveImportantExperience(experience);
     setExperienceDialog(null);
     setExperienceForm({ title: '', content: '', category: 'tip', highlight: '', tags: '' });
+    setExperienceImages([]);
   };
 
   // 打开编辑对话框
@@ -262,9 +270,9 @@ export default function ParentingPage() {
       result: record?.result || '',
       analysis: record?.analysis || '',
       learnings: record?.learnings || '',
-      images: record?.images.join(', ') || '',
       tags: record?.tags.join(', ') || '',
     });
+    setReflectionImages(record?.images || []);
     setReflectionDialog(record || null);
     setIsReflectionDialogOpen(true);
   };
@@ -279,9 +287,9 @@ export default function ParentingPage() {
       insights: record?.insights || '',
       application: record?.application || '',
       actionPlan: record?.actionPlan || '',
-      images: record?.images.join(', ') || '',
       tags: record?.tags.join(', ') || '',
     });
+    setLearningImages(record?.images || []);
     setLearningDialog(record || null);
     setIsLearningDialogOpen(true);
   };
@@ -294,6 +302,7 @@ export default function ParentingPage() {
       highlight: exp?.highlight || '',
       tags: exp?.tags.join(', ') || '',
     });
+    setExperienceImages(exp?.images || []);
     setExperienceDialog(exp || null);
     setIsExperienceDialogOpen(true);
   };
@@ -546,8 +555,12 @@ export default function ParentingPage() {
                     </div>
 
                     <div>
-                      <Label>图片链接（用逗号分隔）</Label>
-                      <Input value={reflectionForm.images} onChange={(e) => setReflectionForm({ ...reflectionForm, images: e.target.value })} placeholder="https://... , https://..." />
+                      <Label>图片上传</Label>
+                      <ImageUploader
+                        images={reflectionImages}
+                        onChange={setReflectionImages}
+                        maxImages={9}
+                      />
                     </div>
                     <div>
                       <Label>标签（用逗号分隔）</Label>
@@ -689,8 +702,12 @@ export default function ParentingPage() {
                     </div>
 
                     <div>
-                      <Label>图片链接（用逗号分隔）</Label>
-                      <Input value={learningForm.images} onChange={(e) => setLearningForm({ ...learningForm, images: e.target.value })} placeholder="https://... , https://..." />
+                      <Label>图片上传</Label>
+                      <ImageUploader
+                        images={learningImages}
+                        onChange={setLearningImages}
+                        maxImages={9}
+                      />
                     </div>
                     <div>
                       <Label>标签（用逗号分隔）</Label>
@@ -804,6 +821,14 @@ export default function ParentingPage() {
                     <div>
                       <Label>金句/高亮（标注最重要的点）</Label>
                       <Textarea value={experienceForm.highlight} onChange={(e) => setExperienceForm({ ...experienceForm, highlight: e.target.value })} placeholder="最值得记住的一句话..." className="min-h-[60px]" />
+                    </div>
+                    <div>
+                      <Label>图片上传</Label>
+                      <ImageUploader
+                        images={experienceImages}
+                        onChange={setExperienceImages}
+                        maxImages={9}
+                      />
                     </div>
                     <div>
                       <Label>标签（用逗号分隔）</Label>
