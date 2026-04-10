@@ -35,12 +35,12 @@ export default function MainNav() {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 group">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-rose-400 via-pink-400 to-violet-500 flex items-center justify-center shadow-lg shadow-pink-200 group-hover:shadow-xl group-hover:scale-105 transition-all">
-              <span className="text-white text-xl font-bold">正</span>
+            <div className="w-11 h-11 rounded-2xl overflow-hidden shadow-lg shadow-pink-200 group-hover:shadow-xl group-hover:scale-105 transition-all">
+              <img src="/logo.png" alt="好宝贝" className="w-full h-full object-cover" />
             </div>
             <div className="hidden sm:block">
               <div className="text-lg font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-                正面管教
+                好宝贝
               </div>
               <div className="text-xs text-pink-500 font-medium -mt-0.5">成长陪伴</div>
             </div>
