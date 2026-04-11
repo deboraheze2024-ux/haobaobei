@@ -43,15 +43,6 @@ jobs:
         run: |
           npx expo prebuild --platform android --clean --no-install
       
-      - name: Fix gradle.properties
-        working-directory: ./client/android
-        run: |
-          # Remove enableBundleCompression if present (not supported in this RN version)
-          sed -i '/enableBundleCompression/d' gradle.properties || true
-          # Also fix in app/build.gradle if needed
-          sed -i 's/enableBundleCompression.*=.*true/false/g' app/build.gradle || true
-          sed -i 's/enableBundleCompression.*=.*false/false/g' app/build.gradle || true
-      
       - name: Build Release APK
         working-directory: ./client/android
         run: |
