@@ -1,0 +1,47 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Install pnpm
+        run: npm install -g pnpm
+      
+      - name: Install dependencies
+        working-directory: ./client
+        run: pnpm install --frozen-lockfile
+      
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v2
+      
+      - name: Prebuild Android
+        working-directory: ./client
+        env:
+          EXPO_PUBLIC_BACKEND_BASE_URL: http://47.106.123.69:9091
+        run: npx expo prebuild --platform android --clean
+      
+      - name: Build Release APK
+        working-directory: ./client/android
+        run: |
+          ./gradlew assembleRelease
+          ls -la app/build/outputs/apk/release/
+      
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: haobaobei-apk
+          path: ./client/android/app/build/outputs/apk/release/*.apk
