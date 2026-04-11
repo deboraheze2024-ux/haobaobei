@@ -30,12 +30,27 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
       
+      - name: Clean old android directory
+        working-directory: ./client
+        run: |
+          rm -rf android
+          rm -rf ios
+      
       - name: Prebuild Android
         working-directory: ./client
         env:
           EXPO_PUBLIC_BACKEND_BASE_URL: http://47.106.123.69:9091
         run: |
           npx expo prebuild --platform android --clean --no-install
+      
+      - name: Fix gradle.properties
+        working-directory: ./client/android
+        run: |
+          # Remove enableBundleCompression if present (not supported in this RN version)
+          sed -i '/enableBundleCompression/d' gradle.properties || true
+          # Also fix in app/build.gradle if needed
+          sed -i 's/enableBundleCompression.*=.*true/false/g' app/build.gradle || true
+          sed -i 's/enableBundleCompression.*=.*false/false/g' app/build.gradle || true
       
       - name: Build Release APK
         working-directory: ./client/android
